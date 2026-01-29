@@ -1,0 +1,34 @@
+{
+  "name": "network-menubar",
+  "version": "1.0.0",
+  "description": "Shows network machines in your macOS menu bar",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac"
+  },
+  "keywords": ["menubar", "network", "discovery", "mac"],
+  "author": "Sebastian Alsina",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "ip": "^1.1.9",
+    "bonjour": "^3.5.0",
+    "ping": "^0.4.4"
+  },
+  "build": {
+    "appId": "com.clawd.network-menubar",
+    "productName": "Network Menubar",
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "icon.icns"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
+}
