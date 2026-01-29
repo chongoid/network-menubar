@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, nativeImage, Tray } = require('electron');
 const path = require('path');
 const NetworkScanner = require('./network-scanner');
 
@@ -21,20 +21,15 @@ function getLocalIP() {
 }
 
 function createTray(machines) {
-  const icon = nativeImage.createFromPath(path.join(__dirname, 'icon.png'));
-  
   if (tray) {
     tray.destroy();
   }
 
-  tray = new nativeImage({
-    templateImage: icon.isMacTemplateX ? icon.toPNG() : undefined
-  });
-  
-  // Create a basic template icon for menu bar
-  const templateIcon = nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAFESURBVFhH7ZY9TsNAEIW/dYBC4gKq4gL+9Qq9Q+/QO/Qu9A69Q69QKD6gKqhQRFHxJtgYx3F82bZr4h8SUx62Y8f2zDCzs7Mz7we5G1VVDcMwm5j1BlgB3IAL4B44AVbAG+AB2KzX6x1wD5wAr4A78Fiv1zvgHjgBXoF34LFer3fAPfAKvAOv9Xq9A+6BU+ANeK/X6x1wD5wBb8B7vV7vgHvgDHgF3uv1egfcA2fAK/Ber9c74B44A16B93q93gH3wBnwCrzX6/UOuAfOgFf7gV6v1zvgHjgDXoH3er3eAffAGfAKvNfr9Q64B86AV+C9Xq93wD1wBrwC7/V6vQPugTPgFXiv1+sdcA+cAa/Ae71e74B74Ax4Bd7r9XoH3ANnwCvwXq/XO+AeOANegfd6vd4B98AZ8Aq81+v1DrgHzoBX4L1er3fAPXAGvALv9Xq9A+6BM+AVeK/X6x1wD5wBr8B7vV7vgHvgDHgF3uv1egfcA2fAK/Ber9c74B44A16B93q93gH3wBnwCrzX6/UOuAfOgFf7gV6v1zvgHjgDXoH3er3eAffAGfAKvNfr9Q64B86AV+C9Xq93wD1wBrwC7/V6vQPugTPgFXiv1+sdcA+cAa/Ae71e74B74Ax4Bd7r9XoH3ANnwCvwXq/XO+AeOANegfd6vd4B98AZ8Aq81+v1DrgHzoBX4L1er3fAPXAGvALv9Xq9A+6BM+AVeK/X6x1wD5wBr8B7vV7vgHvgDHgF3uv1egfcA2fAK/Ber9c74B44A16B93q93gH3wBnwCrzX6/UOuAfOgFf7gV6v1zvgHjgDXoH3er3eAffAGfAKvNfr9Q64B86AV+C9Xq93wD1wBrwC7/V6vQPugTPgFXiv1+sdcA+cAa/Ae71e74B74Ax4Bd7r9XoH3ANnwCvwXq/XO+AeOANegfd6vd4B98AZ8Aq81+v1DrgHzoBX4L1er3fAPXAGvALv9Xq9A+6BM+AVeK/X6x1wD5wBr8B7vV7vgHvgDHgF3uv1egfcA2fAK/Ber9c74B44A16B93q9/u+YA/wBJgG3xU9k1D0AAAAASUVORK5CYII='
-  );
+  // Create a simple network icon as template (16x16 PNG)
+  const iconData = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAACmSURBVFiF7ZY9TsNAEIW/dYBC4gKq4gL+9Qq9Q+/QO/Qu9A69Q69QKD6gKqhQRFHxJtgYx3F82bZr4h8SUx62Y8f2zDCzs7Mz7we5G1VVDcMwm5j1BlgB3IAL4B44AVbAG+AB2KzX6x1wD5wAr4A78Fiv1zvgHjgBXoF34LFer3fAPfAKvAOv9Xq9A+6BU+ANeK/X6x1wD5wBb8B7vV7vgHvgDHgF3uv1egfcA2fAK/Ber9c74B44A16B93q93gH3wBnwCrzX6/UOuAfOgFf7gV6v1zvgHjgDXoH3er3eAffAGfAKvNfr9Q64B86AV+C9Xq93wD1wBrwC7/V6vQPugTPgFXiv1+sdcA+cAa/Ae71e74B74Ax4Bd7r9XoH3ANnwCvwXq/XO+AeOANegfd6vd4B98AZ8Aq81+v1DrgHzoBX4L1er3fAPXAGvALv9Xq9A+6BM+AVeK/X6x1wD5wBr8B7vV7vgHvgDHgF3uv1egfcA2fAK/Ber9c74B44A16B93q9/u+YA/wBJgG3xU9k1D0AAAAASUVORK5CYII=';
+  const icon = nativeImage.createFromDataURL(`data:image/png;base64,${iconData}`);
+
+  tray = new Tray(icon);
 
   const contextMenu = Menu.buildFromTemplate([
     { label: `🖥️ Network Machines (${machines.length})`, enabled: false },
