@@ -26,19 +26,13 @@ jobs:
         run: npm install
 
       - name: Build for macOS
-        run: npm run build:mac
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          ELECTRON_BUILDER_SKIP_NOTARIZE: true
+        run: npm run make
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: mac-build
-          path: dist/
+          path: out/
 
   release:
     needs: build
@@ -50,12 +44,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: mac-build
-          path: dist/
+          path: out/
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.dmg
+          files: out/*.dmg
           draft: false
           prerelease: false
         env:
