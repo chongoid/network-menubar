@@ -24,12 +24,7 @@
     "appId": "com.clawd.network-menubar",
     "productName": "Network Menubar",
     "mac": {
-      "category": "public.app-category.utilities",
-      "sign": false
-    },
-    "directories": {
-      "output": "dist"
-    },
-    "afterSign": "scripts/notarize.js"
+      "category": "public.app-category.utilities"
+    }
   }
 }
