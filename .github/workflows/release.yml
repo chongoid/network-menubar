@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-macos:
     runs-on: macos-latest
 
     steps:
@@ -36,28 +36,69 @@ jobs:
       - name: Build Tauri app (universal)
         run: npx tauri build
 
-      - name: Upload artifact
+      - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tauri-build
+          name: tauri-build-macos
           path: src-tauri/target/release/bundle/dmg/
 
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libssl-dev pkg-config
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Tauri app (Linux)
+        run: npx tauri build
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-build-linux
+          path: src-tauri/target/release/bundle/AppImage/
+
   release:
-    needs: build
+    needs: [build-macos, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - name: Download artifact
+      - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
-          name: tauri-build
+          name: tauri-build-macos
           path: dmg/
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tauri-build-linux
+          path: appimage/
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dmg/*.dmg
+          files: |
+            dmg/*.dmg
+            appimage/*.AppImage
           draft: false
           prerelease: false
         env:
