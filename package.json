@@ -1,12 +1,13 @@
 {
   "name": "network-menubar",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Shows network machines in your macOS menu bar",
   "main": "index.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "build:mac": "electron-builder --mac"
+    "build:mac": "electron-builder --mac",
+    "build:mac-universal": "electron-builder --mac --x64 --arm64"
   },
   "keywords": [
     "menubar",
@@ -35,6 +36,7 @@
     },
     "directories": {
       "output": "dist"
-    }
+    },
+    "publish": null
   }
 }

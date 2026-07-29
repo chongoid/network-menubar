@@ -26,7 +26,7 @@ jobs:
         run: npm ci
 
       - name: Build for macOS
-        run: npm run build:mac
+        run: npm run build:mac-universal
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

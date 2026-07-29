@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell } = require('electron');
 const path = require('path');
 const NetworkScanner = require('./network-scanner');
 
@@ -42,6 +42,13 @@ function getTrayIcon() {
     if (icon.isEmpty()) {
       return createFallbackIcon();
     }
+    // Resize for menu bar (macOS expects ~16x16 or 22x22 @1x, 32x32 @2x)
+    if (!icon.isEmpty()) {
+      const size = icon.getSize();
+      if (size.width > 64 || size.height > 64) {
+        return icon.resize({ width: 22, height: 22 });
+      }
+    }
     return icon;
   } catch (e) {
     return createFallbackIcon();
@@ -75,7 +82,9 @@ function createTray(machines) {
       { label: '❌ Quit', click: () => app.quit() }
     ]);
 
-    tray = new nativeImage(icon.toPNG());
+    // Mark as template image so macOS handles light/dark menu bar appearance
+    try { icon.setTemplateImage(true); } catch (e) {}
+    tray = new Tray(icon);
     tray.setContextMenu(contextMenu);
     tray.setToolTip(`Network Menubar - ${machines.length} machines`);
   } catch (e) {
