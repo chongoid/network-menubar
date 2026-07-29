@@ -1,6 +1,6 @@
 # Network Menubar
 
-Shows machines on your local network in your macOS menu bar.
+Shows machines on your local network in your menu bar. Built with Tauri (Rust backend + webview frontend).
 
 ## Install
 
@@ -9,6 +9,8 @@ curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install
 ```
 
 Works as both installer and updater — it quits any running instance, replaces the app, and relaunches.
+
+Supports macOS (DMG) and Linux (AppImage).
 
 ## Develop
 
@@ -20,22 +22,28 @@ npm start
 ## Build
 
 ```bash
-npm run build:mac-universal
+npm run build
 ```
 
-Produces `dist/` with both Intel and Apple Silicon DMGs.
+Produces platform-specific bundles:
+- macOS: DMG
+- Linux: AppImage, DEB, RPM
 
 ## Structure
 
 ```
 src/
-  index.js         - Electron main process (tray, windows, updates)
   index.html       - Dashboard UI
-  renderer.js      - Dashboard frontend logic
-  preload.js       - IPC bridge
+  index.js         - Dashboard frontend logic
+  renderer.js      - Dashboard renderer
+  preload.js       - Tauri IPC bridge
   network-scanner.js - Bonjour + ping discovery
   welcome.html     - First-run welcome screen
-  tray-icon.js     - Native macOS tray icon
+  tray-icon.js     - Tray icon
+src-tauri/
+  Cargo.toml       - Rust dependencies
+  src/main.rs      - Rust backend (scanner, tray, IPC)
+  tauri.conf.json  - Tauri configuration
 icon.icns          - App icon
 entitlements.plist - macOS code signing entitlements
 install.sh         - One-line installer/updater
