@@ -219,7 +219,7 @@ function createMainWindow() {
     }
   });
 
-  mainWindow.loadFile('index.html');
+  mainWindow.loadFile(path.join(__dirname, 'index.html'));
   return mainWindow;
 }
 
@@ -266,7 +266,7 @@ function maybeShowWelcome() {
         preload: path.join(__dirname, 'preload.js')
       }
     });
-    welcomeWindow.loadFile('welcome.html');
+    welcomeWindow.loadFile(path.join(__dirname, 'welcome.html'));
     welcomeWindow.once('ready-to-show', () => welcomeWindow.show());
     welcomeWindow.on('closed', () => { welcomeWindow = null; });
   } catch (e) {

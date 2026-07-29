@@ -1,29 +1,46 @@
-## Install
+# Network Menubar
 
-### One-line install (recommended)
+Shows machines on your local network in your macOS menu bar.
+
+## Install
 
 ```bash
 curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh -o /tmp/nm_install.sh && bash /tmp/nm_install.sh
 ```
 
-This command works as both an installer and updater. It will:
-- Detect your Mac's architecture (Intel or Apple Silicon)
-- Download the latest release from GitHub
-- Quit any running instance of Network Menubar
-- Remove the existing app from `/Applications`
-- Install the new version to `/Applications`
-- Clear the quarantine attribute
-- Launch the app
+Works as both installer and updater — it quits any running instance, replaces the app, and relaunches.
 
-**No sudo needed in the pipe** — the script handles privilege escalation internally.
+## Develop
 
-### Manual install
+```bash
+npm install
+npm start
+```
 
-1. Download the latest release from [GitHub Releases](https://github.com/chongoid/network-menubar/releases)
-2. Open the `.dmg` file and drag the app to `/Applications`
-3. Right-click the app in Finder and choose **Open**
-4. If you see "Network Menubar is damaged", run:
-   ```bash
-   xattr -dr com.apple.quarantine "/Applications/Network Menubar.app"
-   open "/Applications/Network Menubar.app"
-   ```
+## Build
+
+```bash
+npm run build:mac-universal
+```
+
+Produces `dist/` with both Intel and Apple Silicon DMGs.
+
+## Structure
+
+```
+src/
+  index.js         - Electron main process (tray, windows, updates)
+  index.html       - Dashboard UI
+  renderer.js      - Dashboard frontend logic
+  preload.js       - IPC bridge
+  network-scanner.js - Bonjour + ping discovery
+  welcome.html     - First-run welcome screen
+  tray-icon.js     - Native macOS tray icon
+icon.icns          - App icon
+entitlements.plist - macOS code signing entitlements
+install.sh         - One-line installer/updater
+```
+
+## License
+
+MIT
