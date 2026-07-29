@@ -39,10 +39,7 @@ function buildMachineEl(m) {
       <div class="machine-ip"></div>
     </div>
     <div class="machine-actions">
-      <button class="icon-btn" data-action="copy-ip" title="Copy IP">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
-      </button>
-      <button class="icon-btn" data-action="copy-name" title="Copy Hostname">
+      <button class="icon-btn" data-action="copy-hostname" title="Copy Hostname">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
       </button>
       <button class="icon-btn" data-action="ssh" title="Open SSH">
@@ -58,10 +55,7 @@ function buildMachineEl(m) {
       const action = btn.dataset.action;
       const ip = el.dataset.ip;
       const name = el.dataset.name;
-      if (action === 'copy-ip') {
-        window.api.copyToClipboard(ip);
-        showToast(`Copied: ${ip}`);
-      } else if (action === 'copy-name') {
+      if (action === 'copy-hostname') {
         window.api.copyToClipboard(name);
         showToast(`Copied: ${name}`);
       } else if (action === 'ssh') {

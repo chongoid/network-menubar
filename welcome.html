@@ -9,134 +9,124 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-      color: #fff;
+      background: rgba(255, 255, 255, 0.85);
+      -webkit-font-smoothing: antialiased;
       height: 100vh;
       display: flex;
       flex-direction: column;
-      justify-content: center;
       align-items: center;
+      justify-content: center;
       padding: 40px;
       text-align: center;
-      -webkit-font-smoothing: antialiased;
       overflow: hidden;
-      position: relative;
     }
 
-    @media (prefers-color-scheme: light) {
-      body { color: #000; }
-      .subtitle { color: rgba(0,0,0,0.6); }
-      .checkbox-label { color: rgba(0,0,0,0.8); }
-      .btn.secondary { background: rgba(0,0,0,0.08); color: #000; }
-      .btn.secondary:hover { background: rgba(0,0,0,0.12); }
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: rgba(28, 28, 36, 0.95);
+      }
     }
 
-    .titlebar {
+    .window-header {
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
-      height: 28px;
+      height: 22px;
       -webkit-app-region: drag;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .window-header {
+        border-bottom-color: rgba(255, 255, 255, 0.08);
+      }
+    }
+
+    .window-title {
+      font-size: 11px;
+      font-weight: 500;
+      color: rgba(0, 0, 0, 0.4);
+      -webkit-app-region: drag;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .window-title {
+        color: rgba(255, 255, 255, 0.4);
+      }
     }
 
     .close-btn {
       position: absolute;
-      top: 8px;
+      top: 4px;
       right: 12px;
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.15);
+      background: rgba(255, 255, 255, 0.3);
       -webkit-app-region: no-drag;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
     }
+
     .close-btn::before, .close-btn::after {
       content: '';
       position: absolute;
       width: 8px;
       height: 1.5px;
-      background: rgba(255,255,255,0.8);
+      background: rgba(0, 0, 0, 0.6);
     }
+
     .close-btn::before { transform: rotate(45deg); }
     .close-btn::after { transform: rotate(-45deg); }
 
-    @media (prefers-color-scheme: light) {
-      .close-btn { background: rgba(0,0,0,0.15); }
-      .close-btn::before, .close-btn::after { background: rgba(0,0,0,0.8); }
+    @media (prefers-color-scheme: dark) {
+      .close-btn {
+        background: rgba(0, 0, 0, 0.3);
+      }
+      .close-btn::before, .close-btn::after {
+        background: rgba(255, 255, 255, 0.6);
+      }
     }
 
-    .arrow-area {
-      position: relative;
+    .icon {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 24px;
+      flex-shrink: 0;
+    }
+
+    .icon svg {
       width: 100%;
-      height: 80px;
-      margin-bottom: 30px;
-    }
-
-    .arrow {
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 60px;
-      height: 60px;
-      animation: bob 1.8s ease-in-out infinite;
-    }
-
-    .arrow svg { width: 100%; height: 100%; }
-
-    @keyframes bob {
-      0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.9; }
-      50% { transform: translateX(-50%) translateY(-12px); opacity: 1; }
-    }
-
-    .menubar-mock {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 28px;
-      background: rgba(0,0,0,0.15);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid rgba(127,127,127,0.2);
-    }
-
-    @media (prefers-color-scheme: light) {
-      .menubar-mock { background: rgba(255,255,255,0.4); }
-    }
-
-    .icon-mock {
-      position: absolute;
-      top: 7px;
-      right: 100px;
-      width: 14px;
-      height: 14px;
-      border-radius: 3px;
-      background: linear-gradient(135deg, #0a84ff, #5e5ce6);
-      box-shadow: 0 0 8px rgba(10,132,255,0.6);
-      animation: glow 2s ease-in-out infinite;
-    }
-
-    @keyframes glow {
-      0%, 100% { box-shadow: 0 0 8px rgba(10,132,255,0.6); }
-      50% { box-shadow: 0 0 16px rgba(10,132,255,1); }
+      height: 100%;
     }
 
     h1 {
-      font-size: 26px;
+      font-size: 22px;
       font-weight: 600;
-      letter-spacing: -0.5px;
-      margin-bottom: 12px;
+      letter-spacing: -0.3px;
+      margin-bottom: 8px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      h1 { color: #fff; }
     }
 
     .subtitle {
-      font-size: 15px;
+      font-size: 14px;
       line-height: 1.5;
-      color: rgba(255,255,255,0.75);
-      max-width: 340px;
-      margin-bottom: 30px;
+      color: rgba(0, 0, 0, 0.55);
+      max-width: 320px;
+      margin-bottom: 32px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .subtitle { color: rgba(255, 255, 255, 0.55); }
     }
 
     .checkbox-label {
@@ -145,22 +135,27 @@
       justify-content: center;
       gap: 8px;
       font-size: 13px;
-      color: rgba(255,255,255,0.8);
-      margin-bottom: 24px;
+      color: rgba(0, 0, 0, 0.7);
+      margin-bottom: 28px;
       cursor: pointer;
       -webkit-user-select: none;
       user-select: none;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .checkbox-label { color: rgba(255, 255, 255, 0.7); }
     }
 
     .checkbox-label input {
       appearance: none;
       width: 16px;
       height: 16px;
-      border: 1.5px solid rgba(255,255,255,0.4);
+      border: 1.5px solid rgba(0, 0, 0, 0.3);
       border-radius: 4px;
       position: relative;
       cursor: pointer;
       flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.8);
     }
 
     .checkbox-label input:checked {
@@ -180,11 +175,18 @@
       transform: rotate(45deg);
     }
 
+    @media (prefers-color-scheme: dark) {
+      .checkbox-label input {
+        background: rgba(0, 0, 0, 0.4);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+    }
+
     .btn {
       background: #0a84ff;
       color: white;
       border: none;
-      padding: 10px 30px;
+      padding: 10px 32px;
       border-radius: 8px;
       font-size: 14px;
       font-weight: 500;
@@ -195,29 +197,23 @@
 
     .btn:hover { background: #006ee6; }
     .btn:active { transform: scale(0.97); }
-
-    .btn.secondary {
-      background: rgba(255,255,255,0.15);
-    }
-    .btn.secondary:hover { background: rgba(255,255,255,0.22); }
   </style>
 </head>
 <body>
-  <div class="menubar-mock"></div>
-  <div class="icon-mock"></div>
-  <div class="titlebar"></div>
+  <div class="window-header">
+    <div class="window-title">Network Menubar</div>
+  </div>
   <div class="close-btn" id="close-x"></div>
 
-  <div class="arrow-area">
-    <div class="arrow">
-      <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M30 8 L30 44 M18 32 L30 44 L42 32" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </div>
+  <div class="icon">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M32 4 L56 28 L44 28 L44 48 L20 48 L20 28 L8 28 Z" fill="#0a84ff" stroke="#0a84ff" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="32" cy="40" r="6" fill="none" stroke="#0a84ff" stroke-width="2"/>
+    </svg>
   </div>
 
-  <h1>Look up here</h1>
-  <p class="subtitle">The Network Menubar icon is now in your menu bar (top-right of screen). Click it any time to see machines on your network.</p>
+  <h1>Network Menubar</h1>
+  <p class="subtitle">Shows machines on your local network in the macOS menu bar. Click the icon in your menu bar (top-right) any time to see connected devices.</p>
 
   <label class="checkbox-label">
     <input type="checkbox" id="dont-show">

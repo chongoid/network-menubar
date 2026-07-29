@@ -94,13 +94,12 @@ function buildTrayMenu(machines) {
     ...(sorted.length === 0
       ? [{ label: 'No machines found', enabled: false }]
       : sorted.map(m => ({
-          label: `${m.online ? 'Online' : 'Offline'}  ${m.name || m.ip}`,
+          label: `${m.online ? '●' : '○'}  ${m.name || m.ip}`,
           submenu: [
             { label: `IP: ${m.ip}`, enabled: false },
-            ...(m.port ? [{ label: `Port: ${m.port}`, enabled: false }] : []),
             { type: 'separator' },
-            { label: 'Copy IP', click: () => copyToClipboard(m.ip, 'IP') },
             { label: 'Copy Hostname', click: () => copyToClipboard(m.name || m.ip, 'Hostname') },
+            { label: 'Copy IP', click: () => copyToClipboard(m.ip, 'IP') },
             { type: 'separator' },
             { label: `Open SSH Session (${m.name || m.ip})`,
               click: () => openSSH(m.name || m.ip) }
