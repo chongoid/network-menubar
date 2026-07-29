@@ -40,7 +40,7 @@ echo "  📱 [1/5] Detecting architecture..."
 ARCH=$(uname -m)
 echo "     Architecture: $ARCH"
 case "$ARCH" in
-  arm64|aarch64) ARCH_TAG="aarch64" ;;
+  arm64|aarch64) ARCH_TAG="arm64" ;;
   x86_64)        ARCH_TAG="x86_64"   ;;
   *)           echo "     ${RED}✗${NC} Unsupported architecture: $ARCH" >&2; exit 1 ;;
 esac
@@ -63,12 +63,13 @@ echo "     Latest release: ${GREEN}$RELEASE_TAG${NC}"
 RELEASE_URL=$(echo "$LATEST_JSON" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
+arch_tag = sys.argv[1]
 for a in d.get('assets', []):
     name = a.get('name', '')
-    if 'x86_64' in name and name.endswith('.dmg'):
+    if arch_tag in name and name.endswith('.dmg'):
         print(a.get('browser_download_url', ''))
         break
-" 2>/dev/null)
+" "$ARCH_TAG" 2>/dev/null)
 
 if [[ -z "$RELEASE_URL" ]]; then
   echo "     ${RED}✗${NC} No DMG asset found" >&2
