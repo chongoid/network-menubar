@@ -1,10 +1,9 @@
 #!/bin/bash
 # Network Menubar single-line installer
-# Downloads the latest DMG for the current architecture, installs it to /Applications,
-# clears Gatekeeper quarantine, and launches the app.
-# Usage: curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh | sudo bash
+# Self-contained: downloads itself, then runs with sudo
+# Usage: curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh | bash
+# (Note: NO sudo in the pipe - the script handles privilege escalation internally)
 
-# Don't use set -e initially so we can show errors
 set -uo pipefail
 
 echo "=== Network Menubar Installer ==="
@@ -29,7 +28,7 @@ if [[ -z "$LATEST_JSON" ]]; then
   exit 1
 fi
 
-# Parse JSON with python3 (available on macOS) - pass ARCH_TAG as argv to avoid interpolation issues
+# Parse JSON with python3 - pass ARCH_TAG as argv to avoid interpolation issues
 PARSED=$(echo "$LATEST_JSON" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
@@ -64,7 +63,6 @@ echo "  Download URL: $RELEASE_URL"
 
 # Step 3: Download the DMG
 echo "[3/6] Downloading DMG..."
-# macOS mktemp doesn't support --suffix, so use a different approach
 DMG_PATH=$(mktemp /tmp/nm_install_XXXXXX.dmg)
 echo "  Temp file: $DMG_PATH"
 curl -L --progress-bar -o "$DMG_PATH" "$RELEASE_URL"
