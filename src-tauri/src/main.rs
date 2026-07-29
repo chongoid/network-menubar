@@ -77,6 +77,10 @@ fn copy_to_clipboard(text: String) -> bool {
                 child.wait()
             });
     }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = text; // suppress unused warning on non-macOS
+    }
     true
 }
 

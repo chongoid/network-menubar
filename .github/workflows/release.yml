@@ -27,13 +27,11 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-apple-darwin, aarch64-apple-darwin
 
       - name: Install dependencies
         run: npm install
 
-      - name: Build Tauri app (universal)
+      - name: Build Tauri app
         run: npx tauri build
 
       - name: Upload macOS artifact
@@ -67,13 +65,13 @@ jobs:
         run: npm install
 
       - name: Build Tauri app (Linux AppImage)
-        run: npx tauri build --target appimage
+        run: npx tauri build --bundles appimage
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
           name: tauri-build-linux
-          path: src-tauri/target/release/bundle/AppImage/
+          path: src-tauri/target/release/bundle/appimage/
 
   release:
     needs: [build-macos, build-linux]
