@@ -63,7 +63,15 @@ echo "  Download complete ($(du -h "$DMG_PATH" | cut -f1))"
 
 # Step 4: Mount the DMG
 echo "[4/6] Mounting DMG..."
-MOUNT_POINT=$(hdiutil attach -mountpoint /tmp/nm_install "$DMG_PATH" 2>&1 | tail -1)
+# Use hdiutil attach and extract the mount point from the output
+# Output format: /dev/disk5s1\tGUID_volume_name\t/tmp/nm_install
+# We want the last field which is the mount point
+HDI_OUTPUT=$(hdiutil attach "$DMG_PATH" 2>&1)
+MOUNT_POINT=$(echo "$HDI_OUTPUT" | grep '/Volumes\|/tmp' | awk '{print $NF}' | head -1)
+if [[ -z "$MOUNT_POINT" ]]; then
+  # Fallback: try the -mountpoint flag
+  MOUNT_POINT=$(hdiutil attach -mountpoint /tmp/nm_install "$DMG_PATH" 2>&1 | tail -1 | awk '{print $NF}')
+fi
 echo "  Mounted at: $MOUNT_POINT"
 
 # Find the .app inside the mounted volume
