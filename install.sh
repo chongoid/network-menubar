@@ -169,4 +169,3 @@ echo "  🎉 ${GREEN}Installation complete!${NC}"
 echo "     Network Menubar should now be running in your menu bar."
 echo "     If you don't see it, try right-clicking the app in /Applications and choosing Open."
 echo ""
-open "/Applications/Network Menubar.app"# Cache bust 1785364840
