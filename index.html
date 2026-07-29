@@ -248,18 +248,15 @@
     }
     
     function copyIP(ip) {
-      navigator.clipboard.writeText(ip);
-      showToast('IP copied to clipboard!');
+      navigator.clipboard.writeText(ip).then(() => showToast('IP copied to clipboard!')).catch(() => showToast('Failed to copy'));
     }
-    
+
     function copyName(name) {
-      navigator.clipboard.writeText(name);
-      showToast('Name copied to clipboard!');
+      navigator.clipboard.writeText(name).then(() => showToast('Name copied to clipboard!')).catch(() => showToast('Failed to copy'));
     }
-    
+
     function sshTo(host) {
-      const { shell } = require('electron');
-      shell.openExternal(`ssh://${host}`);
+      api.openExternal(`ssh://${host}`).catch(() => showToast('Failed to open SSH'));
     }
     
     async function refresh() {
@@ -268,10 +265,15 @@
     
     // Listen for updates
     api.onMachinesUpdate(renderMachines);
-    
+
     // Listen for copy events from tray
     api.onCopyIP(showToast);
     api.onCopyName(showToast);
+
+    // Listen for SSH commands from tray menu
+    api.onSSH((machine) => {
+      api.openExternal(`ssh://${machine.name || machine.ip}`).catch(() => showToast('Failed to open SSH'));
+    });
     
     // Initial load
     loadMachines();

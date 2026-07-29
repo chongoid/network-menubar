@@ -1,10 +1,15 @@
-const { app, BrowserWindow, Menu, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, nativeImage, shell } = require('electron');
 const path = require('path');
 const NetworkScanner = require('./network-scanner');
 
 let mainWindow;
 let tray = null;
 let scanner = null;
+let scanInterval = null;
+let isScanning = false;
+
+// Fallback 16x16 template icon (network icon)
+const FALLBACK_ICON_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAEZSURBVDiNpZMxTsNAEEX/bIcgHUNVXIWewEnoGTyBB3C0sbFQuwgVYmNjHJA4ICQuKBSyFjvJ4r97bMnGtpPYM/v2zc7OBv5zSukB8A58A0ege04L4B14A26AW+AZOAdegVfgBbgGnoFz4M0b/x14B26BZ+AcuAbGmPt9Y4wB8A5cAo/AE/AMPABPmbkYY25wYYw5A+6BO+ABuAeusvLv9X6v9/sX1/7+/wKcAG/AFXBtTNl3y/IMnGTlK+AZuAFugWvgKXBWZO4KuAUegEfgiTH5W8A7cAW8A2Ngm5lXwDVwDTwBl8aYc2BijLkFboE74B64B+6y8u/1fq/3+xfX/v7/Apxk7gtg/w+YAGfGmFvgDrgH7oFH4Ckrb4Ffv3X9l+8L2XgGxsq+AO6BB+AJmGTl38b8BfgF/AQ0eC7K/4sZMgAAAABJRU5ErkJggg==';
 
 // Get local IP
 function getLocalIP() {
@@ -20,50 +25,78 @@ function getLocalIP() {
   return '127.0.0.1';
 }
 
-function createTray(machines) {
-  const icon = nativeImage.createFromPath(path.join(__dirname, 'icon.png'));
-  
-  if (tray) {
-    tray.destroy();
+// Create a fallback tray icon
+function createFallbackIcon() {
+  try {
+    return nativeImage.createFromDataURL(`data:image/png;base64,${FALLBACK_ICON_BASE64}`);
+  } catch (e) {
+    return nativeImage.createEmpty();
   }
-
-  tray = new nativeImage({
-    templateImage: icon.isMacTemplateX ? icon.toPNG() : undefined
-  });
-  
-  // Create a basic template icon for menu bar
-  const templateIcon = nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAFESURBVFhH7ZY9TsNAEIW/dYBC4gKq4gL+9Qq9Q+/QO/Qu9A69Q69QKD6gKqhQRFHxJtgYx3F82bZr4h8SUx62Y8f2zDCzs7Mz7we5G1VVDcMwm5j1BlgB3IAL4B44AVbAG+AB2KzX6x1wD5wAr4A78Fiv1zvgHjgBXoF34LFer3fAPfAKvAOv9Xq9A+6BU+ANeK/X6x1wD5wBb8B7vV7vgHvgDHgF3uv1egfcA2fAK/Ber9c74B44A16B93q93gH3wBnwCrzX6/UOuAfOgFf7gV6v1zvgHjgDXoH3er3eAffAGfAKvNfr9Q64B86AV+C9Xq93wD1wBrwC7/V6vQPugTPgFXiv1+sdcA+cAa/Ae71e74B74Ax4Bd7r9XoH3ANnwCvwXq/XO+AeOANegfd6vd4B98AZ8Aq81+v1DrgHzoBX4L1er3fAPXAGvALv9Xq9A+6BM+AVeK/X6x1wD5wBr8B7vV7vgHvgDHgF3uv1egfcA2fAK/Ber9c74B44A16B93q93gH3wBnwCrzX6/UOuAfOgFf7gV6v1zvgHjgDXoH3er3eAffAGfAKvNfr9Q64B86AV+C9Xq93wD1wBrwC7/V6vQPugTPgFXiv1+sdcA+cAa/Ae71e74B74Ax4Bd7r9XoH3ANnwCvwXq/XO+AeOANegfd6vd4B98AZ8Aq81+v1DrgHzoBX4L1er3fAPXAGvALv9Xq9A+6BM+AVeK/X6x1wD5wBr8B7vV7vgHvgDHgF3uv1egfcA2fAK/Ber9c74B44A16B93q93gH3wBnwCrzX6/UOuAfOgFf7gV6v1zvgHjgDXoH3er3eAffAGfAKvNfr9Q64B86AV+C9Xq93wD1wBrwC7/V6vQPugTPgFXiv1+sdcA+cAa/Ae71e74B74Ax4Bd7r9XoH3ANnwCvwXq/XO+AeOANegfd6vd4B98AZ8Aq81+v1DrgHzoBX4L1er3fAPXAGvALv9Xq9A+6BM+AVeK/X6x1wD5wBr8B7vV7vgHvgDHgF3uv1egfcA2fAK/Ber9c74B44A16B93q9/u+YA/wBJgG3xU9k1D0AAAAASUVORK5CYII='
-  );
-
-  const contextMenu = Menu.buildFromTemplate([
-    { label: `🖥️ Network Machines (${machines.length})`, enabled: false },
-    { type: 'separator' },
-    ...machines.map(m => ({
-      label: `${m.online ? '🟢' : '🔴'} ${m.name || m.ip}`,
-      submenu: [
-        { label: 'Copy IP', click: () => { app.mainWindow?.webContents.send('copy-ip', m.ip); }},
-        { label: 'Copy Name', click: () => { app.mainWindow?.webContents.send('copy-name', m.name || m.ip); }},
-        { type: 'separator' },
-        { label: `SSH: ssh ${m.name || m.ip}`, click: () => { app.mainWindow?.webContents.send('ssh', m); }}
-      ]
-    })),
-    { type: 'separator' },
-    { label: '🔄 Refresh', click: () => scanner.scan() },
-    { label: '⚙️ Settings', click: () => app.mainWindow?.show() },
-    { type: 'separator' },
-    { label: '❌ Quit', click: () => app.quit() }
-  ]);
-
-  tray.setContextMenu(contextMenu);
-  tray.setToolTip(`Network Menubar - ${machines.length} machines`);
 }
+
+// Get tray icon with fallback
+function getTrayIcon() {
+  try {
+    const iconPath = path.join(__dirname, 'icon.png');
+    const icon = nativeImage.createFromPath(iconPath);
+    if (icon.isEmpty()) {
+      return createFallbackIcon();
+    }
+    return icon;
+  } catch (e) {
+    return createFallbackIcon();
+  }
+}
+
+function createTray(machines) {
+  try {
+    const icon = getTrayIcon();
+    
+    if (tray) {
+      tray.destroy();
+    }
+
+    const contextMenu = Menu.buildFromTemplate([
+      { label: `🖥️ Network Machines (${machines.length})`, enabled: false },
+      { type: 'separator' },
+      ...machines.map(m => ({
+        label: `${m.online ? '🟢' : '🔴'} ${m.name || m.ip}`,
+        submenu: [
+          { label: 'Copy IP', click: () => { mainWindow?.webContents.send('copy-ip', m.ip); }},
+          { label: 'Copy Name', click: () => { mainWindow?.webContents.send('copy-name', m.name || m.ip); }},
+          { type: 'separator' },
+          { label: `SSH: ssh ${m.name || m.ip}`, click: () => { mainWindow?.webContents.send('ssh', m); }}
+        ]
+      })),
+      { type: 'separator' },
+      { label: '🔄 Refresh', click: () => { if (scanner) scanner.scan(); }},
+      { label: '⚙️ Settings', click: () => { mainWindow?.show(); mainWindow?.center(); }},
+      { type: 'separator' },
+      { label: '❌ Quit', click: () => app.quit() }
+    ]);
+
+    tray = new nativeImage(icon.toPNG());
+    tray.setContextMenu(contextMenu);
+    tray.setToolTip(`Network Menubar - ${machines.length} machines`);
+  } catch (e) {
+    console.error('[NetworkMenubar] createTray error:', e);
+  }
+}
+
+// Global error handlers
+process.on('uncaughtException', (err) => {
+  console.error('[NetworkMenubar] Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[NetworkMenubar] Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
 app.whenReady().then(() => {
   // Create invisible main window for IPC
   mainWindow = new BrowserWindow({
-    width: 400,
-    height: 300,
+    width: 480,
+    height: 600,
     show: false,
     webPreferences: {
       nodeIntegration: false,
@@ -85,19 +118,30 @@ app.whenReady().then(() => {
   // Initial scan
   scanner.scan();
 
-  // Auto-refresh every 30 seconds
-  setInterval(() => scanner.scan(), 30000);
+  // Auto-refresh every 30 seconds, with scan lock
+  scanInterval = setInterval(() => {
+    if (scanner && !isScanning) {
+      scanner.scan();
+    }
+  }, 30000);
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
+  // Menu bar app - do NOT quit when windows close
+  // Only quit on explicit quit() call or Cmd+Q
+});
+
+app.on('before-quit', () => {
+  if (scanInterval) {
+    clearInterval(scanInterval);
+    scanInterval = null;
   }
 });
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     mainWindow.show();
+    mainWindow.center();
   }
 });
 
@@ -107,6 +151,22 @@ ipcMain.handle('get-machines', () => {
 });
 
 ipcMain.handle('scan', () => {
-  scanner?.scan();
+  if (scanner && !isScanning) {
+    scanner.scan();
+  }
   return true;
+});
+
+ipcMain.handle('open-external', (event, url) => {
+  try {
+    // Validate URL before opening
+    const parsed = new URL(url);
+    if (parsed.protocol === 'ssh:' || parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      shell.openExternal(url);
+      return true;
+    }
+  } catch (e) {
+    console.error('[NetworkMenubar] Invalid URL:', url, e);
+  }
+  return false;
 });

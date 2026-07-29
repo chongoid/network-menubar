@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   getMachines: () => ipcRenderer.invoke('get-machines'),
   scan: () => ipcRenderer.invoke('scan'),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
   onMachinesUpdate: (callback) => {
     ipcRenderer.on('machines-update', (event, machines) => callback(machines));
   },
