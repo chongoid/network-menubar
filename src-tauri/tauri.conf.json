@@ -45,9 +45,6 @@
     ],
     "macOS": {
       "entitlements": "../entitlements.plist"
-    },
-    "linux": {
-      "target": "AppImage"
     }
   }
 }
