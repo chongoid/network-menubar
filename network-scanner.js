@@ -214,17 +214,19 @@ class NetworkScanner extends EventEmitter {
   }
 
   _resolveHostnamesInBackground() {
-    // Only resolve for hosts with no name yet
+    // Only resolve for hosts we've never tried to resolve before (not just "no name yet").
+    // Otherwise every scan would re-issue DNS queries for known-no-name hosts.
+    if (!this.dnsAttempted) this.dnsAttempted = new Set();
     for (const [ip, machine] of this.machines) {
-      if (!machine.name && !this.dnsPending.has(ip)) {
+      if (!machine.name && !this.dnsPending.has(ip) && !this.dnsAttempted.has(ip)) {
         this.dnsPending.add(ip);
+        this.dnsAttempted.add(ip);
         dnsReverse(ip).then(hostnames => {
           this.dnsPending.delete(ip);
           if (hostnames && hostnames[0]) {
             const m = this.machines.get(ip);
             if (m && !m.name) {
               m.name = hostnames[0].split('.')[0];
-              // Emit incremental update so UI sees the name appear
               this.emit('update', Array.from(this.machines.values()));
             }
           }
