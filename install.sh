@@ -1,6 +1,7 @@
 #!/bin/bash
-# Network Menubar - One-liner installer
-# Downloads the .app directly (no DMG mounting needed)
+# Network Menubar - One-liner installer/updater
+# Downloads, installs, and launches the app. Works as both fresh installer
+# and updater (quits existing instance, replaces, relaunches).
 # Usage: curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh -o /tmp/nm_install.sh && bash /tmp/nm_install.sh
 
 set -uo pipefail
@@ -35,7 +36,7 @@ echo "  🚀 Network Menubar Installer"
 echo ""
 
 # Step 1: Determine architecture
-echo "  📱 [1/4] Detecting architecture..."
+echo "  📱 [1/5] Detecting architecture..."
 ARCH=$(uname -m)
 echo "     Architecture: $ARCH"
 case "$ARCH" in
@@ -47,7 +48,7 @@ echo "     Using build for: $ARCH_TAG"
 
 # Step 2: Get latest release info from GitHub API
 echo ""
-echo "  🔍 [2/4] Fetching latest release info from GitHub..."
+echo "  🔍 [2/5] Fetching latest release info from GitHub..."
 LATEST_JSON=$(curl -s https://api.github.com/repos/chongoid/network-menubar/releases/latest)
 if [[ -z "$LATEST_JSON" ]]; then
   echo "     ${RED}✗${NC} No response from GitHub API" >&2
@@ -58,7 +59,7 @@ fi
 RELEASE_TAG=$(echo "$LATEST_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tag_name',''))" 2>/dev/null)
 echo "     Latest release: ${GREEN}$RELEASE_TAG${NC}"
 
-# Look for the .zip asset (e.g., "Network Menubar-1.3.1-arm64.zip")
+# Look for the .zip asset
 RELEASE_URL=$(echo "$LATEST_JSON" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
@@ -74,7 +75,6 @@ if [[ -n "$RELEASE_URL" ]]; then
   USE_ZIP=true
 else
   echo "     ${YELLOW}⚠${NC} No .zip found, falling back to DMG..."
-  # Try to get the DMG URL instead
   RELEASE_URL=$(echo "$LATEST_JSON" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
@@ -102,19 +102,17 @@ fi
 # Step 3: Download
 echo ""
 if [[ "$USE_ZIP" == "true" ]]; then
-  echo "  📦 [3/4] Downloading app archive..."
+  echo "  📦 [3/5] Downloading app archive..."
 else
-  echo "  📦 [3/4] Downloading DMG..."
+  echo "  📦 [3/5] Downloading DMG..."
 fi
 
-# Use mktemp correctly for macOS (no --suffix)
 if [[ "$USE_ZIP" == "true" ]]; then
   DOWNLOAD_PATH=$(mktemp /tmp/nm_download_XXXXXX.zip)
 else
   DOWNLOAD_PATH=$(mktemp /tmp/nm_download_XXXXXX.dmg)
 fi
 
-# Download with progress
 (curl -L --progress-bar -o "$DOWNLOAD_PATH" "$RELEASE_URL" 2>&1) &
 CURL_PID=$!
 spin $CURL_PID "Downloading..."
@@ -129,9 +127,20 @@ fi
 FILE_SIZE=$(du -h "$DOWNLOAD_PATH" | cut -f1)
 echo "     Download complete: ${GREEN}$FILE_SIZE${NC}"
 
-# Step 4: Install
+# Step 4: Quit existing instance if running
 echo ""
-echo "  ⚙️  [4/4] Installing to /Applications..."
+echo "  🛑 [4/5] Stopping existing instance (if running)..."
+# Try to quit gracefully via AppleScript
+osascript -e 'tell application "Network Menubar" to quit' 2>/dev/null || true
+sleep 1
+# Force kill if still running
+pkill -f "Network Menubar" 2>/dev/null || true
+sleep 0.5
+echo "     ${GREEN}✓${NC} Existing instance stopped"
+
+# Step 5: Install
+echo ""
+echo "  ⚙️  [5/5] Installing to /Applications..."
 
 if [[ "$USE_ZIP" == "true" ]]; then
   # ZIP path - extract and copy
@@ -145,6 +154,11 @@ if [[ "$USE_ZIP" == "true" ]]; then
     rm -rf "$TMP_EXTRACT" "$DOWNLOAD_PATH"
     exit 1
   fi
+  
+  # Remove existing app first (for clean update)
+  (sudo rm -rf "/Applications/Network Menubar.app") &
+  RM_PID=$!
+  spin $RM_PID "Removing existing app..."
   
   (sudo cp -R "$APP_PATH" /Applications/) &
   CP_PID=$!
@@ -176,6 +190,11 @@ else
     rm -f "$DOWNLOAD_PATH"
     exit 1
   fi
+  
+  # Remove existing app first
+  (sudo rm -rf "/Applications/Network Menubar.app") &
+  RM_PID=$!
+  spin $RM_PID "Removing existing app..."
   
   (sudo cp -R "$APP_PATH" /Applications/) &
   CP_PID=$!

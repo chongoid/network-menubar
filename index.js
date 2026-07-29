@@ -366,90 +366,40 @@ async function runUpdate() {
     checkForUpdates(false);
     return;
   }
-  const arch = process.arch === 'arm64' ? 'arm64' : '';
-  const asset = latestRelease.assets.find(a =>
-    arch ? a.name.includes('arm64') : !a.name.includes('arm64')
-  );
-  if (!asset) {
-    showToast('No DMG asset found in release');
-    return;
-  }
-
-  // Show progress in tray
-  showToast(`Downloading ${asset.name}...`);
-
-  const tmpDir = path.join(os.tmpdir(), `network-menubar-update-${Date.now()}`);
-  fs.mkdirSync(tmpDir, { recursive: true });
-  const dmgPath = path.join(tmpDir, asset.name);
-
-  // Download with redirect support
+  
+  showToast('Downloading and installing update...');
+  
+  // Use the install script to handle the full update process:
+  // quit existing instance, download, install, relaunch
+  const installScriptUrl = 'https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh';
+  const tmpScript = path.join(os.tmpdir(), `nm_install_${Date.now()}.sh`);
+  
   try {
-    await downloadFile(asset.browser_download_url, dmgPath);
-    showToast('Mounting DMG...');
-    // Mount the DMG
-    const { stdout } = await exec(`hdiutil attach -nobrowse -noautoopen "${dmgPath}"`);
-    // Parse mount point from output (last line: /Volumes/<name>)
-    const lines = stdout.trim().split('\n');
-    const mountLine = lines[lines.length - 1];
-    const parts = mountLine.split('\t');
-    const mountPoint = parts[parts.length - 1].trim();
-
-    // Find .app inside
-    const { stdout: lsOut } = await exec(`ls "${mountPoint}"`);
-    const appName = lsOut.trim().split('\n').find(n => n.endsWith('.app'));
-    if (!appName) throw new Error('No .app found in DMG');
-
-    const sourceApp = path.join(mountPoint, appName);
-    const targetApp = path.join('/Applications', appName);
-
-    showToast('Installing update...');
-
-    // Check if we can write to /Applications without sudo
-    let needsSudo = true;
-    try {
-      const testFile = path.join('/Applications', '.nm-write-test');
-      fs.writeFileSync(testFile, 'x');
-      fs.unlinkSync(testFile);
-      needsSudo = false;
-    } catch (e) {}
-
-    if (needsSudo) {
-      // Use osascript to prompt for password and run cp with sudo
-      const script = `do shell script "rm -rf '${targetApp}' && cp -R '${sourceApp}' '${targetApp}'" with administrator privileges`;
-      await exec(`osascript -e '${script.replace(/'/g, "'\\''")}'`);
-    } else {
-      // Direct copy
-      await exec(`rm -rf "${targetApp}" && cp -R "${sourceApp}" "${targetApp}"`);
-    }
-
-    // Unmount and cleanup
-    await exec(`hdiutil detach "${mountPoint}"`);
-    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (e) {}
-
-    showToast('Update installed. Restarting...');
-
-    // Relaunch the new app and quit this one
+    // Download the install script
+    await downloadFile(installScriptUrl, tmpScript);
+    
+    // Make it executable
+    fs.chmodSync(tmpScript, '755');
+    
+    // Quit the current app instance first
     setTimeout(() => {
-      shell.openPath(targetApp);
-      setTimeout(() => app.quit(), 1000);
+      app.quit();
     }, 500);
-
+    
+    // Run the install script in a child process
+    // It will quit any running instance, download, install, and relaunch
+    const { exec } = require('child_process');
+    exec(`bash "${tmpScript}"`, (error, stdout, stderr) => {
+      try { fs.unlinkSync(tmpScript); } catch (e) {}
+      if (error) {
+        console.error('[Updater] install script error:', error.message);
+      }
+    });
+    
   } catch (e) {
     console.error('[Updater] install error:', e.message);
     showToast(`Update failed: ${e.message}`);
-    // Best-effort cleanup: unmount any orphan Network Menubar volumes
-    try {
-      const { stdout: mounts } = await exec('hdiutil info');
-      const lines = mounts.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes('Network Menubar') && i > 0) {
-          const prev = lines[i - 1];
-          const m = prev.match(/\/Volumes\/[^\s]+/);
-          if (m) await exec(`hdiutil detach "${m[0]}"`).catch(() => {});
-        }
-      }
-    } catch (e2) {}
-    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (e2) {}
+    try { fs.unlinkSync(tmpScript); } catch (e2) {}
   }
 }
 

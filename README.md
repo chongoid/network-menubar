@@ -6,12 +6,16 @@
 curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh -o /tmp/nm_install.sh && bash /tmp/nm_install.sh
 ```
 
-This downloads the latest release and installs it to `/Applications`. It will:
+This command works as both an installer and updater. It will:
 - Detect your Mac's architecture (Intel or Apple Silicon)
-- Download the app archive from GitHub
-- Install the app to `/Applications` (prompts for your password)
-- Clear the quarantine attribute so you can open it normally
-- Launch the app immediately
+- Download the latest release from GitHub
+- Quit any running instance of Network Menubar
+- Remove the existing app from `/Applications`
+- Install the new version to `/Applications`
+- Clear the quarantine attribute
+- Launch the app
+
+**No sudo needed in the pipe** — the script handles privilege escalation internally.
 
 ### Manual install
 
