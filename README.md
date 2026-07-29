@@ -1,3 +1,15 @@
+# Network Menubar
+
+Shows machines on your local network in your macOS menu bar.
+
+## Quick Install
+
+```bash
+curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh | sudo bash
+```
+
+This single command downloads the latest release, installs it to `/Applications`, clears the quarantine attribute, and launches the app.
+
 ## Install
 
 ### Option 1: Drag & Drop (manual)
