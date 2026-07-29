@@ -62,7 +62,7 @@ fn scan(state: tauri::State<'_, SharedState>) -> bool {
 }
 
 #[tauri::command]
-fn copy_to_clipboard(_text: String) -> bool {
+fn copy_to_clipboard(text: String) -> bool {
     #[cfg(target_os = "macos")]
     {
         use std::process::Command;
