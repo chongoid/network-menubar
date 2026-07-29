@@ -1,0 +1,52 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Network Menubar",
+  "version": "1.3.2",
+  "identifier": "com.clawd.network-menubar",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Network Menubar",
+        "url": "index.html",
+        "width": 520,
+        "height": 640,
+        "resizable": false,
+        "fullscreen": false,
+        "decorations": false,
+        "hiddenTitle": true,
+        "alwaysOnTop": true
+      },
+      {
+        "title": "Welcome to Network Menubar",
+        "url": "welcome.html",
+        "width": 460,
+        "height": 340,
+        "resizable": false,
+        "fullscreen": false,
+        "decorations": false,
+        "hiddenTitle": true,
+        "alwaysOnTop": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "dmg",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns"
+    ],
+    "macOS": {
+      "entitlements": "../entitlements.plist"
+    }
+  }
+}

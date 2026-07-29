@@ -1,27 +1,42 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { invoke } = require('@tauri-apps/api/tauri');
+const { appWindow } = require('@tauri-apps/api/window');
+const { clipboard } = require('@tauri-apps/api/clipboard');
+const { shell } = require('@tauri-apps/api/shell');
 
-contextBridge.exposeInMainWorld('api', {
-  // Data
-  getMachines: () => ipcRenderer.invoke('get-machines'),
-  getSettings: () => ipcRenderer.invoke('get-settings'),
-  getVersion: () => ipcRenderer.invoke('get-version'),
-
-  // Actions
-  scan: () => ipcRenderer.invoke('scan'),
-  copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
-  openExternal: (url) => ipcRenderer.invoke('open-external', url),
-  openSSH: (host) => ipcRenderer.invoke('open-ssh', host),
-  showDashboard: () => ipcRenderer.invoke('show-dashboard'),
-  hideDashboard: () => ipcRenderer.invoke('hide-dashboard'),
-  updateSetting: (key, value) => ipcRenderer.invoke('update-setting', key, value),
-  checkUpdates: () => ipcRenderer.invoke('check-updates'),
-  closeWelcome: (dontShowAgain) => ipcRenderer.invoke('close-welcome', dontShowAgain),
-
-  // Events
+// Expose Tauri API to the renderer
+window.api = {
+  getMachines: () => invoke('get_machines'),
+  scan: () => invoke('scan'),
+  copyToClipboard: (text) => invoke('copy_to_clipboard', { text, label: 'Text' }),
+  openSSH: (host) => invoke('open_ssh', { host }),
+  showDashboard: () => invoke('show_dashboard'),
+  hideDashboard: () => invoke('hide_dashboard'),
+  closeWelcome: (dontShowAgain) => invoke('close_welcome', { dontShowAgain }),
+  getSettings: () => invoke('get_settings'),
+  updateSetting: (key, value) => invoke('update_setting', { key, value }),
+  checkUpdates: () => invoke('check_updates'),
+  getVersion: () => invoke('get_version'),
+  runUpdate: () => invoke('run_update'),
+  
+  // Event listeners
   onMachinesUpdate: (callback) => {
-    ipcRenderer.on('machines-update', (e, machines) => callback(machines));
+    // In Tauri, we'll use a different approach - polling or events
+    // For now, set up a polling mechanism
+    setInterval(async () => {
+      try {
+        const machines = await invoke('get_machines');
+        callback(machines);
+      } catch (e) {}
+    }, 1000);
   },
   onToast: (callback) => {
-    ipcRenderer.on('toast', (e, message) => callback(message));
+    // Tauri doesn't have a direct equivalent, but we can use events
+    // For now, this is a no-op since we handle toasts in the renderer
   }
+};
+
+// Listen for scan events from the tray
+const { listen } = require('@tauri-apps/api/event');
+listen('scan', () => {
+  window.api.scan();
 });

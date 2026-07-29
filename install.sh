@@ -40,8 +40,8 @@ echo "  📱 [1/5] Detecting architecture..."
 ARCH=$(uname -m)
 echo "     Architecture: $ARCH"
 case "$ARCH" in
-  arm64|aarch64) ARCH_TAG="arm64" ;;
-  x86_64)        ARCH_TAG="x64"   ;;
+  arm64|aarch64) ARCH_TAG="aarch64" ;;
+  x86_64)        ARCH_TAG="x86_64"   ;;
   *)           echo "     ${RED}✗${NC} Unsupported architecture: $ARCH" >&2; exit 1 ;;
 esac
 echo "     Using build for: $ARCH_TAG"
@@ -59,81 +59,53 @@ fi
 RELEASE_TAG=$(echo "$LATEST_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tag_name',''))" 2>/dev/null)
 echo "     Latest release: ${GREEN}$RELEASE_TAG${NC}"
 
-# Look for the .zip asset
+# Look for the DMG asset (Tauri builds DMG for macOS)
 RELEASE_URL=$(echo "$LATEST_JSON" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 for a in d.get('assets', []):
     name = a.get('name', '')
-    if sys.argv[1] in name and name.endswith('.zip'):
+    if 'x86_64' in name and name.endswith('.dmg'):
         print(a.get('browser_download_url', ''))
         break
-" "$ARCH_TAG" 2>/dev/null)
+" 2>/dev/null)
 
-if [[ -n "$RELEASE_URL" ]]; then
-  echo "     Found .zip archive for $ARCH_TAG"
-  USE_ZIP=true
-else
-  echo "     ${YELLOW}⚠${NC} No .zip found, falling back to DMG..."
-  RELEASE_URL=$(echo "$LATEST_JSON" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-for a in d.get('assets', []):
-    name = a.get('name', '')
-    if sys.argv[1] in name and name.endswith('.dmg'):
-        print(a.get('browser_download_url', ''))
-        break
-" "$ARCH_TAG" 2>/dev/null)
-  if [[ -z "$RELEASE_URL" ]]; then
-    echo "     ${RED}✗${NC} No DMG or ZIP asset found" >&2
-    echo "     Available assets:" >&2
-    echo "$LATEST_JSON" | python3 -c "
+if [[ -z "$RELEASE_URL" ]]; then
+  echo "     ${RED}✗${NC} No DMG asset found" >&2
+  echo "     Available assets:" >&2
+  echo "$LATEST_JSON" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 for a in d.get('assets', []):
     print('     ', a.get('name', ''))
 " >&2
-    exit 1
-  fi
-  USE_ZIP=false
-  echo "     Using DMG: $RELEASE_URL"
+  exit 1
 fi
+echo "     Download URL: $RELEASE_URL"
 
 # Step 3: Download
 echo ""
-if [[ "$USE_ZIP" == "true" ]]; then
-  echo "  📦 [3/5] Downloading app archive..."
-else
-  echo "  📦 [3/5] Downloading DMG..."
-fi
-
-if [[ "$USE_ZIP" == "true" ]]; then
-  DOWNLOAD_PATH=$(mktemp /tmp/nm_download_XXXXXX.zip)
-else
-  DOWNLOAD_PATH=$(mktemp /tmp/nm_download_XXXXXX.dmg)
-fi
-
-(curl -L --progress-bar -o "$DOWNLOAD_PATH" "$RELEASE_URL" 2>&1) &
+echo "  📦 [3/5] Downloading DMG..."
+DMG_PATH=$(mktemp /tmp/nm_download_XXXXXX.dmg)
+(curl -L --progress-bar -o "$DMG_PATH" "$RELEASE_URL" 2>&1) &
 CURL_PID=$!
 spin $CURL_PID "Downloading..."
 CURL_EXIT=$?
 
-if [[ $CURL_EXIT -ne 0 ]] || [[ ! -s "$DOWNLOAD_PATH" ]]; then
+if [[ $CURL_EXIT -ne 0 ]] || [[ ! -s "$DMG_PATH" ]]; then
   echo "     ${RED}✗${NC} Download failed" >&2
-  rm -f "$DOWNLOAD_PATH"
+  rm -f "$DMG_PATH"
   exit 1
 fi
 
-FILE_SIZE=$(du -h "$DOWNLOAD_PATH" | cut -f1)
+FILE_SIZE=$(du -h "$DMG_PATH" | cut -f1)
 echo "     Download complete: ${GREEN}$FILE_SIZE${NC}"
 
 # Step 4: Quit existing instance if running
 echo ""
 echo "  🛑 [4/5] Stopping existing instance (if running)..."
-# Try to quit gracefully via AppleScript
 osascript -e 'tell application "Network Menubar" to quit' 2>/dev/null || true
 sleep 1
-# Force kill if still running
 pkill -f "Network Menubar" 2>/dev/null || true
 sleep 0.5
 echo "     ${GREEN}✓${NC} Existing instance stopped"
@@ -142,74 +114,42 @@ echo "     ${GREEN}✓${NC} Existing instance stopped"
 echo ""
 echo "  ⚙️  [5/5] Installing to /Applications..."
 
-if [[ "$USE_ZIP" == "true" ]]; then
-  # ZIP path - extract and copy
-  TMP_EXTRACT=$(mktemp -d /tmp/nm_extract_XXXXXX)
-  unzip -q "$DOWNLOAD_PATH" -d "$TMP_EXTRACT"
-  
-  APP_PATH=$(find "$TMP_EXTRACT" -maxdepth 1 -type d -name "Network Menubar.app" | head -n1)
-  if [[ -z "$APP_PATH" ]]; then
-    echo "     ${RED}✗${NC} Network Menubar.app not found in archive" >&2
-    ls -la "$TMP_EXTRACT" >&2
-    rm -rf "$TMP_EXTRACT" "$DOWNLOAD_PATH"
-    exit 1
-  fi
-  
-  # Remove existing app first (for clean update)
-  (sudo rm -rf "/Applications/Network Menubar.app") &
-  RM_PID=$!
-  spin $RM_PID "Removing existing app..."
-  
-  (sudo cp -R "$APP_PATH" /Applications/) &
-  CP_PID=$!
-  spin $CP_PID "Copying to /Applications..."
-  CP_EXIT=$?
-  
-  if [[ $CP_EXIT -ne 0 ]]; then
-    echo "     ${RED}✗${NC} Failed to copy app to /Applications" >&2
-    rm -rf "$TMP_EXTRACT" "$DOWNLOAD_PATH"
-    exit 1
-  fi
-  
-  rm -rf "$TMP_EXTRACT" "$DOWNLOAD_PATH"
-else
-  # DMG path - mount, copy, unmount
-  MOUNT_POINT="/tmp/nm_mount_$(date +%s)"
-  HDI_OUTPUT=$(hdiutil attach -mountpoint "$MOUNT_POINT" "$DOWNLOAD_PATH" 2>&1)
-  if [[ $? -ne 0 ]]; then
-    echo "     ${RED}✗${NC} Failed to mount DMG" >&2
-    echo "$HDI_OUTPUT" >&2
-    rm -f "$DOWNLOAD_PATH"
-    exit 1
-  fi
-  
-  APP_PATH=$(find "$MOUNT_POINT" -maxdepth 1 -type d -name "Network Menubar.app" | head -n1)
-  if [[ -z "$APP_PATH" ]]; then
-    echo "     ${RED}✗${NC} Network Menubar.app not found in DMG" >&2
-    hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
-    rm -f "$DOWNLOAD_PATH"
-    exit 1
-  fi
-  
-  # Remove existing app first
-  (sudo rm -rf "/Applications/Network Menubar.app") &
-  RM_PID=$!
-  spin $RM_PID "Removing existing app..."
-  
-  (sudo cp -R "$APP_PATH" /Applications/) &
-  CP_PID=$!
-  spin $CP_PID "Copying to /Applications..."
-  CP_EXIT=$?
-  
-  if [[ $CP_EXIT -ne 0 ]]; then
-    echo "     ${RED}✗${NC} Failed to copy app to /Applications" >&2
-    hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
-    rm -f "$DOWNLOAD_PATH"
-    exit 1
-  fi
-  
+# Mount the DMG
+MOUNT_POINT="/tmp/nm_mount_$(date +%s)"
+HDI_OUTPUT=$(hdiutil attach -mountpoint "$MOUNT_POINT" "$DMG_PATH" 2>&1)
+if [[ $? -ne 0 ]]; then
+  echo "     ${RED}✗${NC} Failed to mount DMG" >&2
+  echo "$HDI_OUTPUT" >&2
+  rm -f "$DMG_PATH"
+  exit 1
+fi
+
+APP_PATH=$(find "$MOUNT_POINT" -maxdepth 1 -type d -name "Network Menubar.app" | head -n1)
+echo "     Found app: $APP_PATH"
+
+if [[ -z "$APP_PATH" ]]; then
+  echo "     ${RED}✗${NC} Network Menubar.app not found in DMG" >&2
   hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
-  rm -f "$DOWNLOAD_PATH"
+  rm -f "$DMG_PATH"
+  exit 1
+fi
+
+# Remove existing app
+(sudo rm -rf "/Applications/Network Menubar.app") &
+RM_PID=$!
+spin $RM_PID "Removing existing app..."
+
+# Copy new app
+(sudo cp -R "$APP_PATH" /Applications/) &
+CP_PID=$!
+spin $CP_PID "Copying to /Applications..."
+CP_EXIT=$?
+
+if [[ $CP_EXIT -ne 0 ]]; then
+  echo "     ${RED}✗${NC} Failed to copy app to /Applications" >&2
+  hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
+  rm -f "$DMG_PATH"
+  exit 1
 fi
 
 # Clear quarantine
@@ -217,6 +157,10 @@ fi
 XATTR_PID=$!
 spin $XATTR_PID "Clearing quarantine..."
 echo "     ${GREEN}✓${NC} Quarantine cleared"
+
+# Unmount and cleanup
+hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
+rm -f "$DMG_PATH"
 
 # Launch
 echo ""
