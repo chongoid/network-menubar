@@ -92,8 +92,9 @@ refreshBtn.addEventListener('click', () => {
 });
 
 settingsBtn.addEventListener('click', () => {
-  // The "settings" panel is the macOS tray menu - we show this hint
-  showToast('Click the menu bar icon for settings');
+  // Native macOS settings live in the menu bar icon's context menu (click the
+  // tray icon to see them). This button just shows a hint.
+  showToast('Settings live in the menu bar icon menu');
 });
 
 updateBtn.addEventListener('click', () => {

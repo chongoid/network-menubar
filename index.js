@@ -108,7 +108,7 @@ function buildTrayMenu(machines) {
         }))
     ),
     { type: 'separator' },
-    { label: 'Refresh Now', click: () => { if (scanner && !isScanning) scanner.scan(); }},
+    { label: 'Refresh Now', click: () => { triggerScan(); }},
     buildSettingsMenu(),
     { type: 'separator' },
     { label: 'Quit Network Menubar', click: () => app.quit() }
@@ -187,6 +187,17 @@ function createTray() {
 // ============================================================
 // ACTIONS
 // ============================================================
+async function triggerScan() {
+  if (scanner && !isScanning) {
+    isScanning = true;
+    try {
+      await scanner.scan();
+    } finally {
+      isScanning = false;
+    }
+  }
+}
+
 function copyToClipboard(text, label) {
   try {
     clipboard.writeText(String(text));
@@ -287,8 +298,15 @@ function restartScanInterval() {
   if (scanTimeout) { clearTimeout(scanTimeout); scanTimeout = null; }
 
   const scheduleNext = () => {
-    scanTimeout = setTimeout(() => {
-      if (scanner && !isScanning) scanner.scan();
+    scanTimeout = setTimeout(async () => {
+      if (scanner && !isScanning) {
+        isScanning = true;
+        try {
+          await scanner.scan();
+        } finally {
+          isScanning = false;
+        }
+      }
       scheduleNext();
     }, settings.scanInterval);
   };
@@ -435,13 +453,17 @@ async function runUpdate() {
   } catch (e) {
     console.error('[Updater] install error:', e.message);
     showToast(`Update failed: ${e.message}`);
+    // Best-effort cleanup: unmount any orphan Network Menubar volumes
     try {
-      const { stdout: mounts } = await exec('hdiutil info | grep "/Volumes/" | awk \'{print $3}\'');
-      mounts.split('\n').forEach(m => {
-        if (m.includes('Network Menubar')) {
-          exec(`hdiutil detach "${m.trim()}"`).catch(() => {});
+      const { stdout: mounts } = await exec('hdiutil info');
+      const lines = mounts.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes('Network Menubar') && i > 0) {
+          const prev = lines[i - 1];
+          const m = prev.match(/\/Volumes\/[^\s]+/);
+          if (m) await exec(`hdiutil detach "${m[0]}"`).catch(() => {});
         }
-      });
+      }
     } catch (e2) {}
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (e2) {}
   }
@@ -542,7 +564,7 @@ app.whenReady().then(() => {
 // IPC
 // ============================================================
 ipcMain.handle('get-machines', () => scanner ? scanner.getMachines() : []);
-ipcMain.handle('scan', () => { if (scanner && !isScanning) scanner.scan(); return true; });
+ipcMain.handle('scan', () => { triggerScan(); return true; });
 ipcMain.handle('copy-to-clipboard', (e, text) => { copyToClipboard(text, 'Text'); return true; });
 ipcMain.handle('open-external', (e, url) => {
   try {
