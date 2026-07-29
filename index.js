@@ -6,6 +6,7 @@ const https = require('https');
 const { exec: execCb } = require('child_process');
 const { promisify } = require('util');
 const NetworkScanner = require('./network-scanner');
+const { createTrayIcon } = require('./tray-icon');
 
 const exec = promisify(execCb);
 
@@ -47,29 +48,13 @@ function saveSettings() {
   }
 }
 
-// Fallback 16x16 template icon
-const FALLBACK_ICON_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAFESURBVFhH7ZY9TsNAEIW/dYBC4gKq4gL+9Qq9Q+/QO/Qu9A69Q69QKD6gKqhQRFHxJtgYx3F82bZr4h8SUx62Y8f2zDCzs7Mz7we5G1VVDcMwm5j1BlgB3IAL4B44AVbAG+AB2KzX6x1wD5wAr4A78Fiv1zvgHjgBXoF34LFer3fAPfAKvAOv9Xq9A+6BU+ANeK/X6x1wD5wBb8B7vV7vgHvgDHgF3uv1egfcA2fAK/Ber9c74B44A16B93q93gH3wBnwCrzX6/UOuAfOgFf7gV6v1zvgHjgDXoH3er3eAffAGfAKvNfr9Q64B86AV+C9Xq93wD1wBrwC7/V6vQPugTPgFXiv1+sdcA+cAa/Ae71e74B74Ax4Bd7r9Xq+A+6AM+AVeK/X6x1wD5wBr8B7vV7vgHvgDHgF3uv1egfcA2fAK/Ber9c74B44A16B93q9/u+YA/wBJgG3xU9k1D0AAAAASUVORK5CYII=';
-
-function createFallbackIcon() {
-  try {
-    return nativeImage.createFromDataURL(`data:image/png;base64,${FALLBACK_ICON_BASE64}`);
-  } catch (e) {
-    return nativeImage.createEmpty();
-  }
-}
-
+// Simple triangle icon for the menu bar - native macOS template style
 function getTrayIcon() {
   try {
-    const iconPath = path.join(__dirname, 'icon.png');
-    const icon = nativeImage.createFromPath(iconPath);
-    if (icon.isEmpty()) return createFallbackIcon();
-    const size = icon.getSize();
-    if (size.width > 64 || size.height > 64) {
-      return icon.resize({ width: 22, height: 22 });
-    }
-    return icon;
+    return createTrayIcon();
   } catch (e) {
-    return createFallbackIcon();
+    console.error('[NetworkMenubar] getTrayIcon error:', e.message);
+    return nativeImage.createEmpty();
   }
 }
 
