@@ -47,7 +47,7 @@
       "entitlements": "../entitlements.plist"
     },
     "linux": {
-      "targets": "AppImage"
+      "target": "AppImage"
     }
   }
 }
