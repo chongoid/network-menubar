@@ -29,20 +29,25 @@ if [[ -z "$LATEST_JSON" ]]; then
   exit 1
 fi
 
-# Parse JSON with python3 (available on macOS) - more robust than grep
-RELEASE_TAG=$(echo "$LATEST_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tag_name',''))" 2>/dev/null)
-echo "  Latest release: $RELEASE_TAG"
-
-# Find the DMG URL for our architecture
-RELEASE_URL=$(echo "$LATEST_JSON" | python3 -c "
+# Parse JSON with python3 (available on macOS) - pass ARCH_TAG as argv to avoid interpolation issues
+PARSED=$(echo "$LATEST_JSON" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
+tag = d.get('tag_name', '')
+url = ''
 for a in d.get('assets', []):
     name = a.get('name', '')
-    if '$ARCH_TAG' in name and name.endswith('.dmg'):
-        print(a.get('browser_download_url', ''))
+    if sys.argv[1] in name and name.endswith('.dmg'):
+        url = a.get('browser_download_url', '')
         break
-" 2>/dev/null)
+print(tag)
+print(url)
+" "$ARCH_TAG" 2>/dev/null)
+
+RELEASE_TAG=$(echo "$PARSED" | head -1)
+RELEASE_URL=$(echo "$PARSED" | tail -1)
+
+echo "  Latest release: $RELEASE_TAG"
 
 if [[ -z "$RELEASE_URL" ]]; then
   echo "  ERROR: Could not find a release asset for $ARCH_TAG" >&2
