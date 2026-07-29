@@ -29,17 +29,30 @@ if [[ -z "$LATEST_JSON" ]]; then
   exit 1
 fi
 
-# Show the release tag we found
-RELEASE_TAG=$(echo "$LATEST_JSON" | grep -o '"tag_name":"[^"]*"' | cut -d'"' -f4)
+# Parse JSON with python3 (available on macOS) - more robust than grep
+RELEASE_TAG=$(echo "$LATEST_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tag_name',''))" 2>/dev/null)
 echo "  Latest release: $RELEASE_TAG"
 
 # Find the DMG URL for our architecture
-RELEASE_URL=$(echo "$LATEST_JSON" | grep -o '"browser_download_url":"[^"]*"' | grep "$ARCH_TAG" | cut -d'"' -f4)
+RELEASE_URL=$(echo "$LATEST_JSON" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+for a in d.get('assets', []):
+    name = a.get('name', '')
+    if '$ARCH_TAG' in name and name.endswith('.dmg'):
+        print(a.get('browser_download_url', ''))
+        break
+" 2>/dev/null)
 
 if [[ -z "$RELEASE_URL" ]]; then
   echo "  ERROR: Could not find a release asset for $ARCH_TAG" >&2
   echo "  Available assets:" >&2
-  echo "$LATEST_JSON" | grep '"browser_download_url"' | grep '.dmg' | cut -d'"' -f4 >&2
+  echo "$LATEST_JSON" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+for a in d.get('assets', []):
+    print('  ', a.get('name', ''))
+" >&2
   exit 1
 fi
 echo "  Download URL: $RELEASE_URL"
