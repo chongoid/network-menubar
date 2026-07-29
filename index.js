@@ -515,8 +515,10 @@ app.whenReady().then(() => {
   scanner.on('update', () => {
     // Only rebuild tray menu; mainWindow UI gets update via IPC
     rebuildTray();
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('machines-update', scanner.getMachines());
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isLoading()) {
+      try {
+        mainWindow.webContents.send('machines-update', scanner.getMachines());
+      } catch (e) {}
     }
   });
   scanner.scan(); // non-blocking; emits incrementally

@@ -49,9 +49,17 @@ class NetworkScanner extends EventEmitter {
     const nets = networkInterfaces();
     for (const name of Object.keys(nets)) {
       for (const net of nets[name]) {
-        if (net.family === 'IPv4' && !net.internal && !net.address.startsWith('169.254.')) {
-          return net.address;
+        // Skip loopback, link-local (169.254), and anything not in standard RFC1918 ranges
+        if (net.family !== 'IPv4') continue;
+        if (net.internal) continue;
+        const ip = net.address;
+        if (ip.startsWith('169.254.')) continue; // link-local
+        if (!/^(10|172|192)\./.test(ip) && !ip.startsWith('192.168.')) {
+          // Not RFC1918 private - could be public WiFi or weird interface
+          // Still prefer it over loopback
+          return ip;
         }
+        return ip;
       }
     }
     return '127.0.0.1';
@@ -278,6 +286,10 @@ class NetworkScanner extends EventEmitter {
   }
 
   async scanPing() {
+    // Bail out if no real network (loopback only)
+    if (this.localIP === '127.0.0.1') {
+      return [];
+    }
     const ips = [];
     for (let i = 1; i <= 254; i++) {
       const ip = `${this.subnet}.${i}`;
