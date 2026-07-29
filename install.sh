@@ -4,7 +4,8 @@
 # clears Gatekeeper quarantine, and launches the app.
 # Usage: curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh | sudo bash
 
-set -euo pipefail
+# Don't use set -e initially so we can show errors
+set -uo pipefail
 
 echo "=== Network Menubar Installer ==="
 echo ""
@@ -45,7 +46,8 @@ echo "  Download URL: $RELEASE_URL"
 
 # Step 3: Download the DMG
 echo "[3/6] Downloading DMG..."
-DMG_PATH=$(mktemp --suffix=.dmg)
+# macOS mktemp doesn't support --suffix, so use a different approach
+DMG_PATH=$(mktemp /tmp/nm_install_XXXXXX.dmg)
 echo "  Temp file: $DMG_PATH"
 curl -L --progress-bar -o "$DMG_PATH" "$RELEASE_URL"
 echo "  Download complete ($(du -h "$DMG_PATH" | cut -f1))"
