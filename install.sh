@@ -61,16 +61,18 @@ echo "  Temp file: $DMG_PATH"
 curl -L --progress-bar -o "$DMG_PATH" "$RELEASE_URL"
 echo "  Download complete ($(du -h "$DMG_PATH" | cut -f1))"
 
-# Step 4: Mount the DMG
-echo "[4/6] Mounting DMG..."
-# Use hdiutil attach and extract the mount point from the output
-# Output format: /dev/disk5s1\tGUID_volume_name\t/tmp/nm_install
-# We want the last field which is the mount point
-HDI_OUTPUT=$(hdiutil attach "$DMG_PATH" 2>&1)
-MOUNT_POINT=$(echo "$HDI_OUTPUT" | grep '/Volumes\|/tmp' | awk '{print $NF}' | head -1)
-if [[ -z "$MOUNT_POINT" ]]; then
-  # Fallback: try the -mountpoint flag
-  MOUNT_POINT=$(hdiutil attach -mountpoint /tmp/nm_install "$DMG_PATH" 2>&1 | tail -1 | awk '{print $NF}')
+# Step 4: Mount the DMG and extract the app
+echo "[4/6] Mounting DMG and extracting app..."
+# Create a unique mount point
+MOUNT_POINT="/tmp/nm_mount_$(date +%s)"
+# Attach the DMG - capture all output
+HDI_OUTPUT=$(hdiutil attach -mountpoint "$MOUNT_POINT" "$DMG_PATH" 2>&1)
+if [[ $? -ne 0 ]]; then
+  echo "  ERROR: Failed to mount DMG" >&2
+  echo "  hdiutil output:" >&2
+  echo "$HDI_OUTPUT" >&2
+  rm -f "$DMG_PATH"
+  exit 1
 fi
 echo "  Mounted at: $MOUNT_POINT"
 
@@ -83,6 +85,7 @@ if [[ -z "$APP_PATH" ]]; then
   echo "  Contents of mount point:" >&2
   ls -la "$MOUNT_POINT" >&2
   hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
+  rm -f "$DMG_PATH"
   exit 1
 fi
 
@@ -93,6 +96,7 @@ if sudo cp -R "$APP_PATH" /Applications/; then
 else
   echo "  ERROR: Failed to copy the app to /Applications." >&2
   hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
+  rm -f "$DMG_PATH"
   exit 1
 fi
 
