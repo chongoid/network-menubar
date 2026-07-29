@@ -22,18 +22,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-apple-darwin, aarch64-apple-darwin
-
-      - name: Install Tauri prerequisites
-        run: |
-          brew install webkit2gtk4.1 librsvg
-          echo "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: npm install
