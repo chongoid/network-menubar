@@ -5,298 +5,284 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Network Menubar</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #1c1c24;
+      --bg-elev: #26263a;
+      --bg-hover: #303048;
+      --accent: #0a84ff;
+      --accent-hover: #006ee6;
+      --text: #ffffff;
+      --text-dim: #8e8e9e;
+      --online: #34c759;
+      --offline: #ff453a;
+      --border: #38384a;
     }
-    
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f5f5f7;
+        --bg-elev: #ffffff;
+        --bg-hover: #e8e8ed;
+        --text: #000000;
+        --text-dim: #6e6e7e;
+        --border: #d8d8de;
+      }
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #1a1a2e;
-      color: #eee;
-      padding: 20px;
-    }
-    
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    
-    .header h1 {
-      font-size: 1.5rem;
-      color: #00d4ff;
-    }
-    
-    .refresh-btn {
-      background: #00d4ff;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: background 0.2s;
-    }
-    
-    .refresh-btn:hover {
-      background: #00a8cc;
-    }
-    
-    .stats {
-      display: flex;
-      gap: 20px;
-      margin-bottom: 20px;
-    }
-    
-    .stat {
-      background: #16213e;
-      padding: 15px 20px;
-      border-radius: 8px;
-      text-align: center;
-    }
-    
-    .stat-value {
-      font-size: 2rem;
-      font-weight: bold;
-      color: #00d4ff;
-    }
-    
-    .stat-label {
-      font-size: 0.8rem;
-      color: #888;
-      margin-top: 5px;
-    }
-    
-    .machine-list {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
     }
-    
-    .machine {
-      background: #16213e;
-      padding: 15px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      gap: 15px;
-      transition: transform 0.2s, box-shadow 0.2s;
+
+    .titlebar {
+      height: 28px;
+      -webkit-app-region: drag;
+      background: transparent;
+      flex-shrink: 0;
     }
-    
-    .machine:hover {
-      transform: translateX(5px);
-      box-shadow: 0 2px 10px rgba(0, 212, 255, 0.2);
+
+    .header {
+      padding: 8px 20px 16px;
+      flex-shrink: 0;
     }
-    
-    .status {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: #ff4757;
-    }
-    
-    .status.online {
-      background: #2ed573;
-    }
-    
-    .machine-info {
-      flex: 1;
-    }
-    
-    .machine-name {
+
+    .header h1 {
+      font-size: 22px;
       font-weight: 600;
-      font-size: 1.1rem;
-      margin-bottom: 3px;
+      letter-spacing: -0.4px;
     }
-    
-    .machine-ip {
-      color: #888;
-      font-size: 0.9rem;
+
+    .stats {
+      display: flex;
+      gap: 10px;
+      padding: 0 20px 16px;
+      flex-shrink: 0;
     }
-    
-    .machine-type {
-      background: #0f3460;
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      color: #00d4ff;
+
+    .stat {
+      flex: 1;
+      background: var(--bg-elev);
+      padding: 14px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
     }
-    
-    .machine-actions {
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    .toolbar {
+      padding: 0 20px 12px;
       display: flex;
       gap: 8px;
+      flex-shrink: 0;
     }
-    
-    .action-btn {
-      background: #0f3460;
-      border: none;
-      padding: 8px 12px;
+
+    .btn {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      padding: 6px 14px;
       border-radius: 6px;
-      color: #eee;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500;
       cursor: pointer;
-      font-size: 0.85rem;
+      transition: background 0.1s, transform 0.1s;
+    }
+
+    .btn:hover { background: var(--bg-hover); }
+    .btn:active { transform: scale(0.97); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+    .btn.primary:hover { background: var(--accent-hover); }
+
+    .list-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 20px 20px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .list-container::-webkit-scrollbar { width: 8px; }
+    .list-container::-webkit-scrollbar-thumb {
+      background: rgba(127,127,127,0.3);
+      border-radius: 4px;
+    }
+
+    .machine {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: background 0.1s, transform 0.15s;
+    }
+
+    .machine:hover {
+      background: var(--bg-hover);
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--offline);
+      flex-shrink: 0;
+      box-shadow: 0 0 0 0 var(--online);
       transition: background 0.2s;
     }
-    
-    .action-btn:hover {
-      background: #1a4a7a;
+
+    .machine.online .status-dot {
+      background: var(--online);
+      animation: pulse 2s ease-in-out infinite;
     }
-    
-    .action-btn.copy {
-      background: #2ed57333;
-      color: #2ed573;
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.5); }
+      50% { box-shadow: 0 0 0 4px rgba(52, 199, 89, 0); }
     }
-    
-    .action-btn.copy:hover {
-      background: #2ed57355;
+
+    .machine-info {
+      flex: 1;
+      min-width: 0;
     }
-    
+
+    .machine-name {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .machine-ip {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-family: 'SF Mono', Menlo, monospace;
+    }
+
+    .machine-actions {
+      display: flex;
+      gap: 6px;
+      opacity: 0.7;
+      transition: opacity 0.15s;
+    }
+
+    .machine:hover .machine-actions { opacity: 1; }
+
+    .icon-btn {
+      width: 28px;
+      height: 28px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-dim);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .icon-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text);
+    }
+
+    .icon-btn svg { width: 14px; height: 14px; }
+
     .empty {
+      padding: 60px 20px;
       text-align: center;
-      padding: 40px;
-      color: #666;
+      color: var(--text-dim);
     }
-    
+
+    .empty-title {
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+
+    .empty-sub {
+      font-size: 13px;
+    }
+
     .toast {
       position: fixed;
       bottom: 20px;
-      right: 20px;
-      background: #2ed573;
-      color: #1a1a2e;
-      padding: 12px 20px;
-      border-radius: 8px;
-      font-weight: 600;
-      opacity: 0;
-      transform: translateY(20px);
-      transition: all 0.3s;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--accent);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      pointer-events: none;
     }
-    
+
     .toast.show {
-      opacity: 1;
-      transform: translateY(0);
+      transform: translateX(-50%) translateY(0);
     }
   </style>
 </head>
 <body>
+  <div class="titlebar"></div>
+
   <div class="header">
-    <h1>🖥️ Network Menubar</h1>
-    <button class="refresh-btn" onclick="refresh()">🔄 Refresh</button>
+    <h1>Network Menubar</h1>
   </div>
-  
+
   <div class="stats">
-    <div class="stat">
-      <div class="stat-value" id="total-count">0</div>
-      <div class="stat-label">Total Machines</div>
-    </div>
     <div class="stat">
       <div class="stat-value" id="online-count">0</div>
       <div class="stat-label">Online</div>
     </div>
+    <div class="stat">
+      <div class="stat-value" id="total-count">0</div>
+      <div class="stat-label">Total</div>
+    </div>
   </div>
-  
-  <div class="machine-list" id="machine-list">
-    <div class="empty">Scanning network...</div>
+
+  <div class="toolbar">
+    <button class="btn primary" id="refresh-btn">Refresh</button>
+    <button class="btn" id="settings-btn">Settings</button>
+    <button class="btn" id="update-btn" style="display:none">Update Available</button>
   </div>
-  
+
+  <div class="list-container" id="list-container">
+    <div class="empty">
+      <div class="empty-title">Scanning network</div>
+      <div class="empty-sub">Looking for machines on your local network</div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
-  
-  <script>
-    const { api } = window;
-    
-    function showToast(message) {
-      const toast = document.getElementById('toast');
-      toast.textContent = message;
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 2000);
-    }
-    
-    async function loadMachines() {
-      const machines = await api.getMachines();
-      renderMachines(machines);
-    }
-    
-    function esc(s) {
-      return String(s).replace(/[&<>"']/g, c => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-      }[c]));
-    }
 
-    function renderMachines(machines) {
-      const list = document.getElementById('machine-list');
-      const totalCount = document.getElementById('total-count');
-      const onlineCount = document.getElementById('online-count');
-
-      totalCount.textContent = machines.length;
-      onlineCount.textContent = machines.filter(m => m.online).length;
-
-      if (machines.length === 0) {
-        list.innerHTML = '<div class="empty">No machines found on the network</div>';
-        return;
-      }
-
-      list.innerHTML = machines.map(m => {
-        const safeName = esc(m.name || 'Unknown');
-        const safeIp = esc(m.ip);
-        const displayHost = esc(m.name || m.ip);
-        return `
-        <div class="machine">
-          <div class="status ${m.online ? 'online' : ''}"></div>
-          <div class="machine-info">
-            <div class="machine-name">${safeName}</div>
-            <div class="machine-ip">${safeIp}</div>
-          </div>
-          <span class="machine-type">${esc(m.type || 'ping')}</span>
-          <div class="machine-actions">
-            <button class="action-btn copy" data-ip="${safeIp}" data-action="copy-ip">📋 Copy IP</button>
-            <button class="action-btn copy" data-name="${displayHost}" data-action="copy-name">📋 Copy Name</button>
-            <button class="action-btn" data-host="${displayHost}" data-action="ssh">🔗 SSH</button>
-          </div>
-        </div>
-      `}).join('');
-
-      // Wire up event listeners (don't use inline onclick with raw data)
-      list.querySelectorAll('button[data-action]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const action = btn.dataset.action;
-          if (action === 'copy-ip') copyIP(btn.dataset.ip);
-          else if (action === 'copy-name') copyName(btn.dataset.name);
-          else if (action === 'ssh') sshTo(btn.dataset.host);
-        });
-      });
-    }
-    
-    function copyIP(ip) {
-      navigator.clipboard.writeText(ip).then(() => showToast('IP copied to clipboard!')).catch(() => showToast('Failed to copy'));
-    }
-
-    function copyName(name) {
-      navigator.clipboard.writeText(name).then(() => showToast('Name copied to clipboard!')).catch(() => showToast('Failed to copy'));
-    }
-
-    function sshTo(host) {
-      api.openExternal(`ssh://${host}`).catch(() => showToast('Failed to open SSH'));
-    }
-    
-    async function refresh() {
-      await api.scan();
-    }
-    
-    // Listen for updates
-    api.onMachinesUpdate(renderMachines);
-
-    // Listen for copy events from tray
-    api.onCopyIP(showToast);
-    api.onCopyName(showToast);
-
-    // Listen for SSH commands from tray menu
-    api.onSSH((machine) => {
-      api.openExternal(`ssh://${machine.name || machine.ip}`).catch(() => showToast('Failed to open SSH'));
-    });
-    
-    // Initial load
-    loadMachines();
-  </script>
+  <script src="renderer.js"></script>
 </body>
 </html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Network Menubar</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+      color: #fff;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+      text-align: center;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+      position: relative;
+    }
+
+    @media (prefers-color-scheme: light) {
+      body { color: #000; }
+      .subtitle { color: rgba(0,0,0,0.6); }
+      .checkbox-label { color: rgba(0,0,0,0.8); }
+      .btn.secondary { background: rgba(0,0,0,0.08); color: #000; }
+      .btn.secondary:hover { background: rgba(0,0,0,0.12); }
+    }
+
+    .titlebar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 28px;
+      -webkit-app-region: drag;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      -webkit-app-region: no-drag;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .close-btn::before, .close-btn::after {
+      content: '';
+      position: absolute;
+      width: 8px;
+      height: 1.5px;
+      background: rgba(255,255,255,0.8);
+    }
+    .close-btn::before { transform: rotate(45deg); }
+    .close-btn::after { transform: rotate(-45deg); }
+
+    @media (prefers-color-scheme: light) {
+      .close-btn { background: rgba(0,0,0,0.15); }
+      .close-btn::before, .close-btn::after { background: rgba(0,0,0,0.8); }
+    }
+
+    .arrow-area {
+      position: relative;
+      width: 100%;
+      height: 80px;
+      margin-bottom: 30px;
+    }
+
+    .arrow {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60px;
+      height: 60px;
+      animation: bob 1.8s ease-in-out infinite;
+    }
+
+    .arrow svg { width: 100%; height: 100%; }
+
+    @keyframes bob {
+      0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.9; }
+      50% { transform: translateX(-50%) translateY(-12px); opacity: 1; }
+    }
+
+    .menubar-mock {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 28px;
+      background: rgba(0,0,0,0.15);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(127,127,127,0.2);
+    }
+
+    @media (prefers-color-scheme: light) {
+      .menubar-mock { background: rgba(255,255,255,0.4); }
+    }
+
+    .icon-mock {
+      position: absolute;
+      top: 7px;
+      right: 100px;
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+      box-shadow: 0 0 8px rgba(10,132,255,0.6);
+      animation: glow 2s ease-in-out infinite;
+    }
+
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 8px rgba(10,132,255,0.6); }
+      50% { box-shadow: 0 0 16px rgba(10,132,255,1); }
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+
+    .subtitle {
+      font-size: 15px;
+      line-height: 1.5;
+      color: rgba(255,255,255,0.75);
+      max-width: 340px;
+      margin-bottom: 30px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.8);
+      margin-bottom: 24px;
+      cursor: pointer;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .checkbox-label input {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 1.5px solid rgba(255,255,255,0.4);
+      border-radius: 4px;
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .checkbox-label input:checked {
+      background: #0a84ff;
+      border-color: #0a84ff;
+    }
+
+    .checkbox-label input:checked::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 1px;
+      width: 5px;
+      height: 9px;
+      border: solid white;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    .btn {
+      background: #0a84ff;
+      color: white;
+      border: none;
+      padding: 10px 30px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      min-width: 120px;
+    }
+
+    .btn:hover { background: #006ee6; }
+    .btn:active { transform: scale(0.97); }
+
+    .btn.secondary {
+      background: rgba(255,255,255,0.15);
+    }
+    .btn.secondary:hover { background: rgba(255,255,255,0.22); }
+  </style>
+</head>
+<body>
+  <div class="menubar-mock"></div>
+  <div class="icon-mock"></div>
+  <div class="titlebar"></div>
+  <div class="close-btn" id="close-x"></div>
+
+  <div class="arrow-area">
+    <div class="arrow">
+      <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M30 8 L30 44 M18 32 L30 44 L42 32" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+  </div>
+
+  <h1>Look up here</h1>
+  <p class="subtitle">The Network Menubar icon is now in your menu bar (top-right of screen). Click it any time to see machines on your network.</p>
+
+  <label class="checkbox-label">
+    <input type="checkbox" id="dont-show">
+    <span>Don't show this again</span>
+  </label>
+
+  <button class="btn" id="done-btn">Got it</button>
+
+  <script>
+    const dontShow = document.getElementById('dont-show');
+    const doneBtn = document.getElementById('done-btn');
+    const closeX = document.getElementById('close-x');
+
+    function close() {
+      window.api.closeWelcome(dontShow.checked);
+    }
+
+    doneBtn.addEventListener('click', close);
+    closeX.addEventListener('click', close);
+
+    // Pressing Enter or Escape closes
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === 'Escape') close();
+    });
+  </script>
+</body>
+</html>
