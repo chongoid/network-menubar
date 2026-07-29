@@ -1,6 +1,6 @@
 {
   "name": "network-menubar",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Shows network machines in your macOS menu bar",
   "main": "index.js",
   "scripts": {
@@ -37,6 +37,12 @@
     "directories": {
       "output": "dist"
     },
+    "extraResources": [
+      {
+        "from": "fix-gatekeeper.sh",
+        "to": "fix-gatekeeper.sh"
+      }
+    ],
     "publish": null
   }
 }

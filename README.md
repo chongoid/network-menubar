@@ -19,7 +19,24 @@ A macOS menu bar app that displays all machines on your local network with their
 ### Download
 Download the latest release from [GitHub Releases](https://github.com/chongoid/network-menubar/releases) — open the .dmg and drag the app to Applications.
 
-> **First launch on Apple Silicon / Ventura+:** Right-click the app → Open → Open. (Not signed with an Apple Developer ID.)
+> **⚠️ First launch ("Network Menubar.app is damaged" error):**
+> The app is not signed with an Apple Developer ID, so macOS Gatekeeper will block it.
+> Pick whichever fix you prefer:
+>
+> **Option A — Right-click (one-time per app):**
+> In Finder, right-click `Network Menubar.app` → **Open** → **Open** in the dialog.
+>
+> **Option B — Strip the quarantine flag (Terminal):**
+> ```bash
+> xattr -dr com.apple.quarantine "/Applications/Network Menubar.app"
+> open "/Applications/Network Menubar.app"
+> ```
+>
+> **Option C — Run the included installer helper:**
+> A `fix-gatekeeper.sh` script is included with each release. After dragging the app to Applications, run:
+> ```bash
+> ./fix-gatekeeper.sh
+> ```
 
 ### Build from Source
 
