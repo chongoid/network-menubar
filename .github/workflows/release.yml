@@ -49,10 +49,24 @@ jobs:
           name: mac-build
           path: dist/
 
+      - name: Create zip of app for easy install
+        run: |
+          # Find the .app files and zip them for direct download
+          cd dist
+          for app in *.app; do
+            if [ -d "$app" ]; then
+              zip -r "${app%.app}.zip" "$app"
+              echo "Created ${app%.app}.zip"
+            fi
+          done
+          ls -la *.zip
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.dmg
+          files: |
+            dist/*.dmg
+            dist/*.zip
           draft: false
           prerelease: false
         env:
