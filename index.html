@@ -217,34 +217,54 @@
       renderMachines(machines);
     }
     
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
     function renderMachines(machines) {
       const list = document.getElementById('machine-list');
       const totalCount = document.getElementById('total-count');
       const onlineCount = document.getElementById('online-count');
-      
+
       totalCount.textContent = machines.length;
       onlineCount.textContent = machines.filter(m => m.online).length;
-      
+
       if (machines.length === 0) {
         list.innerHTML = '<div class="empty">No machines found on the network</div>';
         return;
       }
-      
-      list.innerHTML = machines.map(m => `
+
+      list.innerHTML = machines.map(m => {
+        const safeName = esc(m.name || 'Unknown');
+        const safeIp = esc(m.ip);
+        const displayHost = esc(m.name || m.ip);
+        return `
         <div class="machine">
           <div class="status ${m.online ? 'online' : ''}"></div>
           <div class="machine-info">
-            <div class="machine-name">${m.name || 'Unknown'}</div>
-            <div class="machine-ip">${m.ip}</div>
+            <div class="machine-name">${safeName}</div>
+            <div class="machine-ip">${safeIp}</div>
           </div>
-          <span class="machine-type">${m.type || 'ping'}</span>
+          <span class="machine-type">${esc(m.type || 'ping')}</span>
           <div class="machine-actions">
-            <button class="action-btn copy" onclick="copyIP('${m.ip}')">📋 Copy IP</button>
-            <button class="action-btn copy" onclick="copyName('${m.name || m.ip}')">📋 Copy Name</button>
-            <button class="action-btn" onclick="sshTo('${m.name || m.ip}')">🔗 SSH</button>
+            <button class="action-btn copy" data-ip="${safeIp}" data-action="copy-ip">📋 Copy IP</button>
+            <button class="action-btn copy" data-name="${displayHost}" data-action="copy-name">📋 Copy Name</button>
+            <button class="action-btn" data-host="${displayHost}" data-action="ssh">🔗 SSH</button>
           </div>
         </div>
-      `).join('');
+      `}).join('');
+
+      // Wire up event listeners (don't use inline onclick with raw data)
+      list.querySelectorAll('button[data-action]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.action;
+          if (action === 'copy-ip') copyIP(btn.dataset.ip);
+          else if (action === 'copy-name') copyName(btn.dataset.name);
+          else if (action === 'ssh') sshTo(btn.dataset.host);
+        });
+      });
     }
     
     function copyIP(ip) {
