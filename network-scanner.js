@@ -139,9 +139,11 @@ class NetworkScanner extends EventEmitter {
   }
 
   _mergeAndEmitPartial(bonjourResults, pingResults) {
-    // Quick merge that doesn't overwrite existing machines
+    // Incremental merge from a partial scan (Bonjour results before ping completes).
+    // We update existing entries' name/type/port (Bonjour is authoritative) but we
+    // also re-emit when anything changes so the UI stays fresh.
     const now = Date.now();
-    let added = false;
+    let changed = false;
     for (const m of bonjourResults) {
       const existing = this.machines.get(m.ip);
       if (!existing) {
@@ -150,14 +152,41 @@ class NetworkScanner extends EventEmitter {
           online: true,
           lastSeen: now
         });
-        added = true;
+        changed = true;
       } else {
         existing.online = true;
         existing.lastSeen = now;
-        if (m.name && !existing.name) existing.name = m.name;
+        // Bonjour is authoritative for name/type/port - update if changed
+        if (m.name && (!existing.name || existing.name !== m.name)) {
+          existing.name = m.name;
+          changed = true;
+        }
+        if (m.type && existing.type !== m.type) {
+          existing.type = m.type;
+          changed = true;
+        }
+        if (m.port && existing.port !== m.port) {
+          existing.port = m.port;
+          changed = true;
+        }
       }
     }
-    if (added) {
+    for (const m of pingResults) {
+      const existing = this.machines.get(m.ip);
+      if (!existing) {
+        this.machines.set(m.ip, {
+          ...m,
+          online: true,
+          lastSeen: now
+        });
+        changed = true;
+      } else if (!existing.online) {
+        existing.online = true;
+        existing.lastSeen = now;
+        changed = true;
+      }
+    }
+    if (changed) {
       this.emit('update', Array.from(this.machines.values()));
     }
   }
