@@ -3,17 +3,20 @@
 ### One-line install (recommended)
 
 ```bash
-curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh -o /tmp/nm_install.sh && bash /tmp/nm_install.sh
 ```
 
-This downloads and runs the installer script. It will:
+This downloads the installer script to a temp file, then runs it. It will:
 - Detect your Mac's architecture (Intel or Apple Silicon)
 - Download the latest release DMG from GitHub
 - Install the app to `/Applications` (prompts for your password)
 - Clear the quarantine attribute so you can open it normally
 - Launch the app immediately
 
-**Note:** Run without `sudo` in the pipe — the script handles privilege escalation internally for the copy step.
+**Alternative (single pipe):**
+```bash
+curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh | bash
+```
 
 ### Manual install
 

@@ -1,8 +1,7 @@
 #!/bin/bash
-# Network Menubar single-line installer
-# Self-contained: downloads itself, then runs with sudo
-# Usage: curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh | bash
-# (Note: NO sudo in the pipe - the script handles privilege escalation internally)
+# Network Menubar - One-liner installer
+# This script is designed to be downloaded and run directly
+# Usage: curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh -o /tmp/nm_install.sh && bash /tmp/nm_install.sh
 
 set -uo pipefail
 
@@ -28,25 +27,19 @@ if [[ -z "$LATEST_JSON" ]]; then
   exit 1
 fi
 
-# Parse JSON with python3 - pass ARCH_TAG as argv to avoid interpolation issues
-PARSED=$(echo "$LATEST_JSON" | python3 -c "
+# Parse JSON with python3
+RELEASE_TAG=$(echo "$LATEST_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tag_name',''))" 2>/dev/null)
+echo "  Latest release: $RELEASE_TAG"
+
+RELEASE_URL=$(echo "$LATEST_JSON" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-tag = d.get('tag_name', '')
-url = ''
 for a in d.get('assets', []):
     name = a.get('name', '')
-    if sys.argv[1] in name and name.endswith('.dmg'):
-        url = a.get('browser_download_url', '')
+    if '$ARCH_TAG' in name and name.endswith('.dmg'):
+        print(a.get('browser_download_url', ''))
         break
-print(tag)
-print(url)
-" "$ARCH_TAG" 2>/dev/null)
-
-RELEASE_TAG=$(echo "$PARSED" | head -1)
-RELEASE_URL=$(echo "$PARSED" | tail -1)
-
-echo "  Latest release: $RELEASE_TAG"
+" 2>/dev/null)
 
 if [[ -z "$RELEASE_URL" ]]; then
   echo "  ERROR: Could not find a release asset for $ARCH_TAG" >&2
