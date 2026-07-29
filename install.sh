@@ -1,24 +1,5 @@
-## Install
-
-### Option 1: Drag & Drop (manual)
-
-1. Download the latest release from [GitHub Releases](https://github.com/chongoid/network-menubar/releases)
-2. Open the `.dmg` file and drag `Network Menubar.app` to `/Applications`
-3. Right-click the app in Finder and choose **Open** (first launch may show "Network Menubar is damaged" — see below)
-4. On first launch, macOS may show a Gatekeeper warning. To fix:
-   ```bash
-   xattr -dr com.apple.quarantine "/Applications/Network Menubar.app"
-   open /Applications/Network Menubar.app
-   ```
-
-### Option 2: One-line install (recommended)
-
-Create an executable install script in your home directory:
-
-```bash
-cat > ~/install-menubar.sh <<'EOF'
 #!/bin/bash
-# Network Menubar single‑line installer
+# Network Menubar single-line installer
 # Downloads the latest DMG for the current architecture, installs it to /Applications,
 # clears Gatekeeper quarantine, and launches the app.
 
@@ -44,7 +25,7 @@ fi
 
 # Download the DMG to a temporary location
 DMG_PATH=$(mktemp --suffix=.dmg)
-echo "Downloading $ARCH_TAG DMG…"
+echo "Downloading $ARCH_TAG DMG..."
 curl -L -o "$DMG_PATH" "$RELEASE_URL"
 
 # Mount the DMG
@@ -59,7 +40,7 @@ if [[ -z "$APP_PATH" ]]; then
 fi
 
 # Copy the app to /Applications (needs admin password)
-echo "Installing Network Menubar to /Applications…"
+echo "Installing Network Menubar to /Applications..."
 if sudo cp -R "$APP_PATH" /Applications/; then
   echo "Installation successful."
 else
@@ -69,14 +50,14 @@ else
 fi
 
 # Clear Gatekeeper quarantine attribute
-echo "Clearing quarantine attribute…"
+echo "Clearing quarantine attribute..."
 sudo xattr -dr com.apple.quarantine "/Applications/Network Menubar.app"
 
 # Unmount the DMG
 hdiutil detach "$MOUNT_POINT"
 
 # Launch the app
-echo "Launching Network Menubar…"
+echo "Launching Network Menubar..."
 open "/Applications/Network Menubar.app"
 
 echo "Done."
