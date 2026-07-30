@@ -103,7 +103,8 @@ for a in d.get('assets', []):
   # Replace app in /Applications
   echo -e "${YELLOW}📁 Installing to /Applications...${NC}"
   if [ -d "$APP_DEST" ]; then
-    rm -rf "$APP_DEST"
+    echo -e "${YELLOW}🔐 Removing existing app (may require sudo)...${NC}"
+    rm -rf "$APP_DEST" 2>/dev/null || sudo rm -rf "$APP_DEST"
   fi
   ditto "$EXTRACTED_APP" "$APP_DEST"
 
