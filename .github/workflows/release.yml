@@ -75,7 +75,9 @@ jobs:
             file \
             wget \
             fuse \
-            libfuse2
+            libfuse2 \
+            libayatana-appindicator3-dev \
+            librsvg2-bin
 
       - name: Install npm dependencies
         run: npm install
