@@ -285,8 +285,9 @@ class NetworkScanner extends EventEmitter {
 
     // Mark ARP-only IPs (devices that have communicated but don't respond to ping)
     // These are likely sleepers, IoT, smart TVs. State = 'asleep' (not 'online', not fully 'offline')
-    const arpSet = new Set(arpIps);
-    for (const ip of arpIps) {
+    for (const arpEntry of arpIps) {
+      const ip = typeof arpEntry === 'string' ? arpEntry : arpEntry.ip;
+      const mac = typeof arpEntry === 'string' ? null : arpEntry.mac;
       if (!merged.has(ip)) {
         merged.set(ip, {
           ip,
@@ -294,7 +295,8 @@ class NetworkScanner extends EventEmitter {
           online: false,
           asleep: true,  // in ARP cache but not responding to ping
           lastSeen: now,
-          services: []
+          services: [],
+          mac: mac  // store MAC for Wake-on-LAN
         });
       } else {
         // Known machine — if ping failed previously but ARP shows it, mark as asleep
@@ -302,6 +304,8 @@ class NetworkScanner extends EventEmitter {
         if (!m.online && !m.pingFailed) {
           m.asleep = true;
         }
+        // Always update MAC if we have it
+        if (mac && !m.mac) m.mac = mac;
       }
     }
     // Clear asleep flag if device started responding to ping
@@ -587,21 +591,67 @@ class NetworkScanner extends EventEmitter {
   async scanARP() {
     try {
       const { stdout } = await exec('arp -an 2>/dev/null');
-      const ips = new Set();
+      const results = [];
       // Parse "?(10.0.0.1) at d8:9c:8e:7b:57:e8 [ether] on en0"
-      const re = /\((\d+\.\d+\.\d+\.\d+)\)/g;
+      // Also handle "?(10.0.0.1) at <incomplete> on en0"
+      const re = /\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-f:]+)/g;
       let m;
       while ((m = re.exec(stdout)) !== null) {
         const ip = m[1];
+        const mac = m[2].toLowerCase();
         // Skip loopback and self
         if (ip !== this.localIP && !ip.startsWith('127.') && !ip.startsWith('224.') && !ip.startsWith('255.')) {
-          ips.add(ip);
+          results.push({ ip, mac });
         }
       }
-      return Array.from(ips);
+      return results;
     } catch (e) {
       console.error('[NetworkScanner] scanARP error:', e.message);
       return [];
+    }
+  }
+
+  // Send a Wake-on-LAN magic packet to a machine by MAC address.
+  // The magic packet is a UDP broadcast containing the target MAC repeated 16 times.
+  // Most machines need this sent on the local subnet (255.255.255.255:9 or 7).
+  async wakeOnLan(mac, ip) {
+    if (!mac) {
+      throw new Error('No MAC address available for Wake-on-LAN');
+    }
+    // Normalize MAC: remove separators, convert to uppercase
+    const cleanMac = mac.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+    if (cleanMac.length !== 12) {
+      throw new Error(`Invalid MAC address: ${mac}`);
+    }
+
+    // Build magic packet: 6 bytes of 0xFF followed by 16 repetitions of the MAC
+    const buf = Buffer.alloc(102); // 6 + 16*6 = 102 bytes
+    buf.fill(0xff, 0, 6);
+    for (let i = 0; i < 16; i++) {
+      for (let j = 0; j < 6; j++) {
+        buf[6 + i * 6 + j] = parseInt(cleanMac.substr(j * 2, 2), 16);
+      }
+    }
+
+    // Send via UDP broadcast on port 9 (discard) and 7 (echo)
+    const dgram = require('dgram');
+    const sock = dgram.createSocket('udp4');
+    try {
+      await new Promise((resolve, reject) => {
+        sock.bind(0, () => {
+          sock.setBroadcast(true);
+          sock.send(buf, 9, '255.255.255.255', (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        // Timeout after 2 seconds
+        setTimeout(() => { sock.close(); reject(new Error('WOL send timeout')); }, 2000);
+      });
+      sock.close();
+    } catch (e) {
+      try { sock.close(); } catch (e2) {}
+      throw e;
     }
   }
 

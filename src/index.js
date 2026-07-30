@@ -192,8 +192,16 @@ function buildTrayMenu(machines) {
               ...(m.name && m.name !== m.ip
                 ? [{ label: `${m.name}.local`, click: () => copyToClipboard(`${m.name}.local`, 'Hostname') }]
                 : []),
+              ...(m.mac
+                ? [{ label: m.mac, click: () => copyToClipboard(m.mac, 'MAC') }]
+                : []),
               ...(m.asleep
                 ? [{ label: 'Asleep (in ARP cache, not responding to ping)', enabled: false }]
+                : []),
+              ...(!m.online && m.mac
+                ? [{ type: 'separator' },
+                   { label: 'Wake on LAN',
+                     click: () => wakeMachine(m) }]
                 : []),
               { type: 'separator' },
               { label: `Open SSH Session`,
@@ -318,6 +326,41 @@ function openSSH(host) {
     shell.openExternal(`ssh://${encodeURIComponent(host)}`);
   } catch (e) {
     console.error('[NetworkMenubar] openSSH error:', e.message);
+  }
+}
+
+function wakeMachine(machine) {
+  if (!machine.mac) {
+    const { Notification } = require('electron');
+    new Notification({
+      title: 'Wake on LAN',
+      body: `No MAC address for ${machine.name || machine.ip}. Is it in the ARP cache?`,
+      silent: true
+    }).show();
+    return;
+  }
+  try {
+    scanner.wakeOnLan(machine.mac, machine.ip)
+      .then(() => {
+        const { Notification } = require('electron');
+        new Notification({
+          title: 'Wake on LAN',
+          body: `Magic packet sent to ${machine.name || machine.ip} (${machine.mac})`,
+          silent: true
+        }).show();
+        // Trigger a quick re-scan after 5 seconds to see if it comes online
+        setTimeout(() => { if (scanner) scanner.scan(); }, 5000);
+      })
+      .catch(err => {
+        const { Notification } = require('electron');
+        new Notification({
+          title: 'Wake on LAN Failed',
+          body: err.message,
+          silent: false
+        }).show();
+      });
+  } catch (e) {
+    console.error('[NetworkMenubar] wakeMachine error:', e.message);
   }
 }
 
