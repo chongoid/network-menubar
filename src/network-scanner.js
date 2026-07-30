@@ -161,8 +161,16 @@ class NetworkScanner extends EventEmitter {
     const services = await servicesPromise;
     if (scanVersion !== this.scanVersion) return;
 
+    // Read local ARP cache to catch sleepers/IoT that don't respond to ping
+    const arpPromise = this.scanARP().catch(e => {
+      console.error('[NetworkScanner] ARP error:', e.message);
+      return [];
+    });
+    const arpIps = await arpPromise;
+    if (scanVersion !== this.scanVersion) return;
+
     // Final merge with all data
-    this._mergeAndEmit(bonjourResults, pingResults, scanVersion, services);
+    this._mergeAndEmit(bonjourResults, pingResults, scanVersion, services, arpIps);
 
     // Fire-and-forget hostname resolution for ping-only hosts
     this._resolveHostnamesInBackground();
@@ -221,7 +229,7 @@ class NetworkScanner extends EventEmitter {
     }
   }
 
-  _mergeAndEmit(bonjourResults, pingResults, scanVersion, services = []) {
+  _mergeAndEmit(bonjourResults, pingResults, scanVersion, services = [], arpIps = []) {
     if (scanVersion !== this.scanVersion) return;
 
     const now = Date.now();
@@ -230,6 +238,32 @@ class NetworkScanner extends EventEmitter {
     // Seed with existing machines (preserve services array across scans)
     for (const [ip, m] of this.machines) {
       merged.set(ip, { ...m, services: m.services ? [...m.services] : [] });
+    }
+
+    // Mark ARP-only IPs (devices that have communicated but don't respond to ping)
+    // These are likely sleepers, IoT, smart TVs. State = 'asleep' (not 'online', not fully 'offline')
+    const arpSet = new Set(arpIps);
+    for (const ip of arpIps) {
+      if (!merged.has(ip)) {
+        merged.set(ip, {
+          ip,
+          name: null,
+          online: false,
+          asleep: true,  // in ARP cache but not responding to ping
+          lastSeen: now,
+          services: []
+        });
+      } else {
+        // Known machine — if ping failed previously but ARP shows it, mark as asleep
+        const m = merged.get(ip);
+        if (!m.online && !m.pingFailed) {
+          m.asleep = true;
+        }
+      }
+    }
+    // Clear asleep flag if device started responding to ping
+    for (const m of merged.values()) {
+      if (m.online) m.asleep = false;
     }
 
     // Bonjour wins for name/type
@@ -503,6 +537,29 @@ class NetworkScanner extends EventEmitter {
 
     // Return BOTH success and failure so the merger can flag offline machines
     return allResults;
+  }
+
+  // Read local ARP cache to find devices that communicated with us recently
+  // even if they don't respond to ICMP (sleepers, IoT, smart TVs).
+  async scanARP() {
+    try {
+      const { stdout } = await exec('arp -an 2>/dev/null');
+      const ips = new Set();
+      // Parse "?(10.0.0.1) at d8:9c:8e:7b:57:e8 [ether] on en0"
+      const re = /\((\d+\.\d+\.\d+\.\d+)\)/g;
+      let m;
+      while ((m = re.exec(stdout)) !== null) {
+        const ip = m[1];
+        // Skip loopback and self
+        if (ip !== this.localIP && !ip.startsWith('127.') && !ip.startsWith('224.') && !ip.startsWith('255.')) {
+          ips.add(ip);
+        }
+      }
+      return Array.from(ips);
+    } catch (e) {
+      console.error('[NetworkScanner] scanARP error:', e.message);
+      return [];
+    }
   }
 
   pingIP(ip) {

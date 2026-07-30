@@ -116,13 +116,17 @@ function wifiBars(rssi) {
 // ============================================================
 function buildTrayMenu(machines) {
   const onlineCount = machines.filter(m => m.online).length;
+  const asleepCount = machines.filter(m => m.asleep).length;
+  // Show online always; asleep only when showOffline is true; offline only when showOffline
   const visibleMachines = settings.showOffline
     ? machines
     : machines.filter(m => m.online);
 
-  // Group: online first, then offline
+  // Group: online first, then asleep, then offline
   const sorted = [...visibleMachines].sort((a, b) => {
-    if (a.online !== b.online) return a.online ? -1 : 1;
+    const aState = a.online ? 0 : (a.asleep ? 1 : 2);
+    const bState = b.online ? 0 : (b.asleep ? 1 : 2);
+    if (aState !== bState) return aState - bState;
     return (a.name || a.ip).localeCompare(b.name || b.ip);
   });
 
@@ -135,7 +139,8 @@ function buildTrayMenu(machines) {
     : `${bars}  Connecting…`;
 
   // Top header: device count
-  const headerLabel = `${machines.length} Network Devices Detected (${onlineCount} online)`;
+  const asleepNote = asleepCount > 0 ? `, ${asleepCount} asleep` : '';
+  const headerLabel = `${machines.length} Network Devices Detected (${onlineCount} online${asleepNote})`;
 
   return Menu.buildFromTemplate([
     { label: headerLabel, enabled: false },
@@ -154,12 +159,21 @@ function buildTrayMenu(machines) {
               ]
             : [];
 
+          // Status indicator: ● online, ◐ asleep (ARP only), ○ offline
+          let statusIcon;
+          if (m.online) statusIcon = '●';
+          else if (m.asleep) statusIcon = '◐';
+          else statusIcon = '○';
+
           return {
-            label: `${m.online ? '●' : '○'}  ${m.name || m.ip}${m.services && m.services.length > 0 ? `  (${m.services.length})` : ''}`,
+            label: `${statusIcon}  ${m.name || m.ip}${m.services && m.services.length > 0 ? `  (${m.services.length})` : ''}`,
             submenu: [
               { label: m.ip, click: () => copyToClipboard(m.ip, 'IP') },
               ...(m.name && m.name !== m.ip
                 ? [{ label: `${m.name}.local`, click: () => copyToClipboard(`${m.name}.local`, 'Hostname') }]
+                : []),
+              ...(m.asleep
+                ? [{ label: 'Asleep (in ARP cache, not responding to ping)', enabled: false }]
                 : []),
               { type: 'separator' },
               { label: `Open SSH Session`,
