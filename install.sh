@@ -2,6 +2,7 @@
 # Network Menubar - One-liner installer/updater
 # Downloads, installs, and launches the app. Works as both fresh installer
 # and updater (quits existing instance, replaces, relaunches).
+# Cache-bust: 2026-07-29
 # Usage:
 #   curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh -o /tmp/nm_install.sh && bash /tmp/nm_install.sh
 
