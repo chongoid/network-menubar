@@ -124,18 +124,32 @@ function buildTrayMenu(machines) {
     { type: 'separator' },
     ...(sorted.length === 0
       ? [{ label: 'No machines found', enabled: false }]
-      : sorted.map(m => ({
-          label: `${m.online ? '●' : '○'}  ${m.name || m.ip}`,
-          submenu: [
-            { label: `IP: ${m.ip}`, enabled: false },
-            { type: 'separator' },
-            { label: 'Copy Hostname', click: () => copyToClipboard(m.name || m.ip, 'Hostname') },
-            { label: 'Copy IP', click: () => copyToClipboard(m.ip, 'IP') },
-            { type: 'separator' },
-            { label: `Open SSH Session (${m.name || m.ip})`,
-              click: () => openSSH(m.name || m.ip) }
-          ]
-        }))
+      : sorted.map(m => {
+          const serviceItems = (m.services && m.services.length > 0)
+            ? [
+                { type: 'separator' },
+                { label: 'Services', enabled: false },
+                ...m.services.map(s => ({
+                  label: `▸  ${s.label}${s.port ? ' :' + s.port : ''}`,
+                  click: () => openService(s, m)
+                }))
+              ]
+            : [];
+
+          return {
+            label: `${m.online ? '●' : '○'}  ${m.name || m.ip}${m.services && m.services.length > 0 ? `  (${m.services.length})` : ''}`,
+            submenu: [
+              { label: `IP: ${m.ip}`, enabled: false },
+              { type: 'separator' },
+              { label: 'Copy Hostname', click: () => copyToClipboard(m.name || m.ip, 'Hostname') },
+              { label: 'Copy IP', click: () => copyToClipboard(m.ip, 'IP') },
+              { type: 'separator' },
+              { label: `Open SSH Session (${m.name || m.ip})`,
+                click: () => openSSH(m.name || m.ip) },
+              ...serviceItems
+            ]
+          };
+        })
     ),
     { type: 'separator' },
     { label: 'Refresh Now', click: () => { triggerScan(); }},
@@ -248,6 +262,44 @@ function openSSH(host) {
     shell.openExternal(`ssh://${encodeURIComponent(host)}`);
   } catch (e) {
     console.error('[NetworkMenubar] openSSH error:', e.message);
+  }
+}
+
+function openService(service, host) {
+  // service: { type, label, port, scheme }
+  try {
+    const ip = host.ip || host.name;
+    if (!ip) return;
+
+    // Informational-only types — show notification instead
+    const infoOnly = ['airplay', 'raop', 'googlecast', 'homekit'];
+    if (infoOnly.includes(service.type)) {
+      const { Notification } = require('electron');
+      new Notification({
+        title: `${service.label} on ${ip}`,
+        body: service.type === 'googlecast'
+          ? 'Open the Google Home app or use Chrome\'s Cast menu to connect.'
+          : service.type === 'airplay' || service.type === 'raop'
+          ? 'Use System Settings → Display (or right-click the volume icon) to connect via AirPlay.'
+          : 'HomeKit accessory detected. Open the Home app on this Mac to manage it.',
+        silent: true
+      }).show();
+      return;
+    }
+
+    // Build the URL based on scheme
+    let url;
+    if (service.type === 'ssh') {
+      url = `ssh://${ip}`;
+    } else if (service.scheme) {
+      url = `${service.scheme}://${ip}${service.port ? ':' + service.port : ''}`;
+    } else {
+      return;
+    }
+
+    shell.openExternal(url);
+  } catch (e) {
+    console.error('[NetworkMenubar] openService error:', e.message);
   }
 }
 

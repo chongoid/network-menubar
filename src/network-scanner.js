@@ -6,10 +6,26 @@ const { promisify } = require('util');
 
 const dnsReverse = promisify(dns.reverse);
 
-// Service types to browse via Bonjour
+// Service types to browse via Bonjour for hostnames
 const SERVICE_TYPES = [
   'http', 'ssh', 'afpovertcp', 'smb', 'nfs', 'ftp',
   'airplay', 'raop', 'printer', 'scanner', 'homekit', 'hap'
+];
+
+// Service types to track as actionable services (with port + click handlers)
+// Format: [bonjour_type, display_label, scheme_for_open]
+const SERVICE_BROWSER_TYPES = [
+  ['ssh',          'SSH',          null],           // opens Terminal with ssh
+  ['http',         'HTTP',         'http'],
+  ['https',        'HTTPS',        'https'],
+  ['smb',          'SMB',          'smb'],
+  ['ipp',          'IPP',          'ipp'],
+  ['ipps',         'IPPS',         'ipps'],
+  ['airplay',      'AirPlay',      null],           // informational only
+  ['raop',         'AirPlay Audio',null],
+  ['googlecast',   'Chromecast',   null],
+  ['homekit',      'HomeKit',      null],
+  ['afpovertcp',   'AFP',          'afp'],
 ];
 
 // Stale machine timeout (5 minutes) — only used as last resort
@@ -133,8 +149,16 @@ class NetworkScanner extends EventEmitter {
     this.lastPingResults = pingResults;
     if (scanVersion !== this.scanVersion) return;
 
+    // Browse service types (SSH/HTTP/SMB/AirPlay etc.) and attach to machines
+    const servicesPromise = this.scanServices(BONJOUR_FULL_MS).catch(e => {
+      console.error('[NetworkScanner] Services error:', e.message);
+      return [];
+    });
+    const services = await servicesPromise;
+    if (scanVersion !== this.scanVersion) return;
+
     // Final merge with all data
-    this._mergeAndEmit(bonjourResults, pingResults, scanVersion);
+    this._mergeAndEmit(bonjourResults, pingResults, scanVersion, services);
 
     // Fire-and-forget hostname resolution for ping-only hosts
     this._resolveHostnamesInBackground();
@@ -193,15 +217,15 @@ class NetworkScanner extends EventEmitter {
     }
   }
 
-  _mergeAndEmit(bonjourResults, pingResults, scanVersion) {
+  _mergeAndEmit(bonjourResults, pingResults, scanVersion, services = []) {
     if (scanVersion !== this.scanVersion) return;
 
     const now = Date.now();
     const merged = new Map();
 
-    // Seed with existing machines
+    // Seed with existing machines (preserve services array across scans)
     for (const [ip, m] of this.machines) {
-      merged.set(ip, { ...m });
+      merged.set(ip, { ...m, services: m.services ? [...m.services] : [] });
     }
 
     // Bonjour wins for name/type
@@ -253,6 +277,28 @@ class NetworkScanner extends EventEmitter {
         m.online = false;
       }
       // else: keep existing online state
+    }
+
+    // Merge service records (replace stale ones, keep fresh)
+    const servicesByIp = new Map();
+    for (const s of services) {
+      if (!servicesByIp.has(s.ip)) servicesByIp.set(s.ip, []);
+      servicesByIp.get(s.ip).push(s);
+    }
+    for (const [ip, svcs] of servicesByIp) {
+      const m = merged.get(ip);
+      if (!m) continue;
+      if (!m.services) m.services = [];
+      for (const s of svcs) {
+        m.services = m.services.filter(x => x.type !== s.type);
+        m.services.push({
+          type: s.type,
+          label: s.label,
+          port: s.port,
+          name: s.name,
+          scheme: s.scheme
+        });
+      }
     }
 
     this.machines = merged;
@@ -329,6 +375,68 @@ class NetworkScanner extends EventEmitter {
         console.error('[NetworkScanner] Bonjour init error:', e.message);
         if (bonjour) { try { bonjour.destroy(); } catch (e2) {} }
         resolve(machines);
+      }
+    });
+  }
+
+  async scanServices(timeoutMs = BONJOUR_FULL_MS) {
+    // Browse additional service types and attach them to parent machines.
+    // Returns array of { ip, type, port, name, txt, scheme } records.
+    return new Promise((resolve) => {
+      const services = [];
+      let bonjour;
+
+      try {
+        const Bonjour = require('bonjour-service');
+        bonjour = new Bonjour();
+
+        const browsers = SERVICE_BROWSER_TYPES.map(([type, label, scheme]) => {
+          const browser = bonjour.find({ type, protocol: 'tcp' });
+          browser.on('up', (service) => {
+            // Get first IPv4 address from addresses array
+            const ip = service.addresses && service.addresses.find(a => a.includes('.')) || service.host;
+            if (!ip || ip === this.localIP) return;
+
+            services.push({
+              ip,
+              type,
+              label,
+              port: service.port || null,
+              name: service.name || null,
+              txt: service.txt || {},
+              scheme
+            });
+
+            // Attach to parent machine if it exists, creating a placeholder if not
+            let m = this.machines.get(ip);
+            if (!m) {
+              m = {
+                ip,
+                name: service.name || null,
+                online: true,
+                lastSeen: Date.now(),
+                services: []
+              };
+              this.machines.set(ip, m);
+            }
+            if (!m.services) m.services = [];
+            // Replace any existing entry for this type
+            m.services = m.services.filter(s => s.type !== type);
+            m.services.push({ type, label, port: service.port, name: service.name, scheme });
+          });
+          return browser;
+        });
+
+        setTimeout(() => {
+          browsers.forEach(b => { try { b.stop(); } catch (e) {} });
+          if (bonjour) { try { bonjour.destroy(); } catch (e) {} }
+          resolve(services);
+        }, timeoutMs);
+
+      } catch (e) {
+        console.error('[NetworkScanner] scanServices error:', e.message);
+        if (bonjour) { try { bonjour.destroy(); } catch (e) {} }
+        resolve([]);
       }
     });
   }
