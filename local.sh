@@ -1,12 +1,15 @@
 #!/bin/bash
 # Network Menubar - LOCAL dev installer (run from seebi)
-# Pulls source from thinktower, builds locally, installs to ~/Applications, launches.
+# Pulls source from thinktower via rsync, builds locally, installs, launches.
 #
-# Usage (from seebi):
-#   bash local.sh
+# Usage from seebi:
+#   rsync -az --exclude='.git' --exclude='node_modules' --exclude='dist' \
+#     thinktower:/home/alsinas/network-menubar/ ~/Projects/network-menubar/
+#   bash ~/Projects/network-menubar/local.sh
 #
-# Or one-liner from anywhere:
-#   curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/local.sh | bash
+# Or one-liner:
+#   ssh thinktower 'cat /home/alsinas/network-menubar/local.sh' > /tmp/nm_local.sh \
+#     && bash /tmp/nm_local.sh
 
 set -uo pipefail
 
@@ -29,19 +32,26 @@ echo ""
 # Pull source from thinktower
 echo -e "  📥 Pulling source from ${REMOTE_HOST}:${REMOTE_REPO}..."
 mkdir -p "$HOME/Projects"
-if [[ -d "$LOCAL_REPO" ]]; then
-  # Existing repo — update via rsync to avoid git remote confusion
-  rsync -az --delete --exclude='.git' --exclude='node_modules' --exclude='dist' \
-    "${REMOTE_HOST}:${REMOTE_REPO}/" "$LOCAL_REPO/"
-  echo -e "     ${GREEN}✓${NC} Updated existing repo"
-else
-  # Fresh clone via rsync
+
+if [[ -d "$LOCAL_REPO/.git" ]] || [[ -d "$LOCAL_REPO/package.json" ]]; then
+  # Existing repo — incremental update
   rsync -az --exclude='.git' --exclude='node_modules' --exclude='dist' \
     "${REMOTE_HOST}:${REMOTE_REPO}/" "$LOCAL_REPO/"
-  echo -e "     ${GREEN}✓${NC} Cloned to $LOCAL_REPO"
+  echo -e "     ${GREEN}✓${NC} Updated"
+else
+  # Fresh copy
+  rsync -az --exclude='.git' --exclude='node_modules' --exclude='dist' \
+    "${REMOTE_HOST}:${REMOTE_REPO}/" "$LOCAL_REPO/"
+  echo -e "     ${GREEN}✓${NC} Synced to $LOCAL_REPO"
 fi
 
 cd "$LOCAL_REPO"
+
+# Verify we got the right thing
+if [[ ! -f "package.json" ]] || ! grep -q '"electron"' package.json 2>/dev/null; then
+  echo -e "  ${RED}✗${NC} Rsync failed - no Electron package.json at $LOCAL_REPO"
+  exit 1
+fi
 
 # Check Node
 if ! command -v node &> /dev/null; then
@@ -56,19 +66,19 @@ if [[ ! -d "node_modules" ]] || [[ "package.json" -nt "node_modules/.package-loc
   npm install
 fi
 
-# Build for macOS (universal)
+# Build for macOS (universal: arm64 + x64)
 echo ""
-echo -e "  🔨 Building for macOS (arm64 + x64)..."
+echo -e "  🔨 Building for macOS..."
 npm run build:mac-universal 2>&1 | tail -3
 
 # Find the built .app
 ARCH=$(uname -m)
 if [[ "$ARCH" == "arm64" ]]; then
   BUILT_APP="dist/mac-arm64/$APP_NAME"
-  if [[ ! -d "$BUILT_APP" ]]; then BUILT_APP="dist/mac/$APP_NAME"; fi
+  [[ ! -d "$BUILT_APP" ]] && BUILT_APP="dist/mac/$APP_NAME"
 else
   BUILT_APP="dist/mac/$APP_NAME"
-  if [[ ! -d "$BUILT_APP" ]]; then BUILT_APP="dist/mac-arm64/$APP_NAME"; fi
+  [[ ! -d "$BUILT_APP" ]] && BUILT_APP="dist/mac-arm64/$APP_NAME"
 fi
 
 if [[ ! -d "$BUILT_APP" ]]; then

@@ -12,8 +12,10 @@ const SERVICE_TYPES = [
   'airplay', 'raop', 'printer', 'scanner', 'homekit', 'hap'
 ];
 
-// Stale machine timeout (90 seconds)
-const STALE_TIMEOUT_MS = 90000;
+// Stale machine timeout (5 minutes) — only used as last resort
+const STALE_TIMEOUT_MS = 5 * 60 * 1000;
+// Grace period for bonjour-only machines (no ping confirmation needed)
+const BONJOUR_GRACE_MS = 90 * 1000;
 
 // Max concurrent pings at once
 const PING_BATCH_SIZE = 48;
@@ -218,24 +220,39 @@ class NetworkScanner extends EventEmitter {
     // Ping adds new hosts or refreshes lastSeen
     for (const m of pingResults) {
       const existing = merged.get(m.ip);
-      if (!existing) {
-        merged.set(m.ip, {
-          ...m,
-          online: true,
-          lastSeen: now
-        });
+      if (m.online) {
+        if (!existing) {
+          merged.set(m.ip, {
+            ...m,
+            online: true,
+            lastSeen: now
+          });
+        } else {
+          existing.online = true;
+          existing.lastSeen = now;
+          existing.pingFailed = false;
+          if (!existing.name && m.name) existing.name = m.name;
+        }
       } else {
-        existing.online = true;
-        existing.lastSeen = now;
-        if (!existing.name && m.name) existing.name = m.name;
+        // Ping failed — flag for offline after grace period
+        if (existing) {
+          existing.pingFailed = true;
+        }
       }
     }
 
-    // Mark stale
+    // Mark stale — only if not seen in a very long time, OR if explicitly
+    // flagged by a ping failure (m.pingFailed === true). Bonjour-only
+    // machines stay "online" within the grace window since bonjour events
+    // are themselves authoritative.
     for (const m of merged.values()) {
-      if (now - (m.lastSeen || 0) > STALE_TIMEOUT_MS) {
+      if (m.pingFailed === true && (now - (m.lastSeen || 0)) > BONJOUR_GRACE_MS) {
+        m.online = false;
+        m.pingFailed = false;  // consume the flag
+      } else if (now - (m.lastSeen || 0) > STALE_TIMEOUT_MS) {
         m.online = false;
       }
+      // else: keep existing online state
     }
 
     this.machines = merged;
@@ -338,7 +355,8 @@ class NetworkScanner extends EventEmitter {
       await new Promise(r => setTimeout(r, PING_BATCH_DELAY_MS));
     }
 
-    return allResults.filter(r => r.online);
+    // Return BOTH success and failure so the merger can flag offline machines
+    return allResults;
   }
 
   pingIP(ip) {
