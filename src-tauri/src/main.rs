@@ -2,15 +2,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::collections::HashMap;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use tauri::{
-    AppHandle, Manager, Emitter,
+    AppHandle, Manager,
     image::Image,
     menu::{Menu, MenuItem},
-    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
+    tray::TrayIconBuilder,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,62 +96,13 @@ fn open_ssh(host: String) -> bool {
 }
 
 #[tauri::command]
-fn show_dashboard(app: AppHandle) -> bool {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
-    }
-    true
-}
-
-#[tauri::command]
-fn hide_dashboard(app: AppHandle) -> bool {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.hide();
-    }
-    true
-}
-
-#[tauri::command]
-fn close_welcome(app: AppHandle, dont_show_again: bool) -> bool {
-    if dont_show_again {
-        if let Ok(path) = app.path().config_dir() {
-            let welcomed_path = path.join(".network-menubar-welcomed");
-            let _ = std::fs::write(
-                welcomed_path,
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis()
-                    .to_string(),
-            );
-        }
-    }
-    if let Some(window) = app.get_webview_window("welcome") {
-        let _ = window.close();
-    }
-    true
-}
-
-#[tauri::command]
-fn get_settings(app: AppHandle) -> serde_json::Value {
-    let mut settings = serde_json::json!({
+fn get_settings(_app: AppHandle) -> serde_json::Value {
+    serde_json::json!({
         "scanInterval": 30000,
         "showOffline": true,
         "openAtLogin": false,
         "autoUpdateCheck": true
-    });
-
-    if let Ok(path) = app.path().config_dir() {
-        let settings_path = path.join("network-menubar-settings.json");
-        if let Ok(data) = std::fs::read_to_string(&settings_path) {
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data) {
-                settings = parsed;
-            }
-        }
-    }
-
-    settings
+    })
 }
 
 #[tauri::command]
@@ -166,11 +116,6 @@ fn update_setting(app: AppHandle, key: String, value: serde_json::Value) -> bool
             serde_json::to_string_pretty(&settings).unwrap_or_default(),
         );
     }
-    true
-}
-
-#[tauri::command]
-fn check_updates(_app: AppHandle) -> bool {
     true
 }
 
@@ -198,21 +143,17 @@ pub fn run() {
             scan,
             copy_to_clipboard,
             open_ssh,
-            show_dashboard,
-            hide_dashboard,
-            close_welcome,
             get_settings,
             update_setting,
-            check_updates,
             get_version,
             run_update
         ])
         .setup(|app| {
-            let show_dashboard = MenuItem::with_id(app, "show", "Open Dashboard", true, None::<&str>)?;
-            let scan_now = MenuItem::with_id(app, "scan", "Scan Now", true, None::<&str>)?;
+            let scan_item = MenuItem::with_id(app, "scan", "Scan Now", true, None::<&str>)?;
+            let about_item = MenuItem::with_id(app, "about", "About", true, None::<&str>)?;
             let update_item = MenuItem::with_id(app, "update", "Check for Updates", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_dashboard, &scan_now, &update_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&scan_item, &about_item, &update_item, &quit_item])?;
 
             let icon_bytes = include_bytes!("../icons/32x32.png");
             let icon = Image::from_bytes(icon_bytes)?;
@@ -221,18 +162,23 @@ pub fn run() {
                 .icon(icon)
                 .icon_as_template(true)
                 .menu(&menu)
-                .show_menu_on_left_click(false)
+                .show_menu_on_left_click(true)
                 .tooltip("Network Menubar")
                 .on_menu_event(|app, event| {
                     match event.id.as_ref() {
-                        "show" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
-                        }
                         "scan" => {
-                            let _ = app.emit("scan-now", ());
+                            use std::process::Command;
+                            let _ = Command::new("osascript")
+                                .arg("-e")
+                                .arg(r#"display notification "Scanning local network..." with title "Network Menubar""#)
+                                .status();
+                        }
+                        "about" => {
+                            use std::process::Command;
+                            let _ = Command::new("osascript")
+                                .arg("-e")
+                                .arg(r#"display dialog "Network Menubar v" & (do shell script "defaults read /Applications/Network\\ Menubar.app/Contents/Info CFBundleShortVersionString") & "\n\nShows machines on your local network in your menu bar." with title "About Network Menubar" buttons {"OK"} default button "OK""#)
+                                .status();
                         }
                         "update" => {
                             use std::process::Command;
@@ -247,14 +193,8 @@ pub fn run() {
                         _ => {}
                     }
                 })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
+                .on_tray_icon_event(|_tray, _event| {
+                    // Left click shows menu by default (show_menu_on_left_click = true)
                 })
                 .build(app)?;
             Ok(())

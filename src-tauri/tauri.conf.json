@@ -1,24 +1,10 @@
 {
   "productName": "Network Menubar",
-  "version": "1.4.0",
+  "version": "1.4.2",
   "identifier": "com.clawd.network-menubar",
-  "build": {
-    "frontendDist": "../src"
-  },
+  "build": {},
   "app": {
-    "windows": [
-      {
-        "title": "Network Menubar",
-        "url": "index.html",
-        "width": 520,
-        "height": 640,
-        "resizable": false,
-        "fullscreen": false,
-        "decorations": false,
-        "hiddenTitle": true,
-        "alwaysOnTop": true
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
     }

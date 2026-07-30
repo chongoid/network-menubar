@@ -1,6 +1,6 @@
 [package]
 name = "network-menubar"
-version = "1.4.2"
+version = "1.4.3"
 description = "Shows network machines in your macOS menu bar"
 authors = ["Sebastian Alsina"]
 license = "MIT"
