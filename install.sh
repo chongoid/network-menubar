@@ -2,6 +2,7 @@
 # Network Menubar - One-liner installer/updater
 # Downloads, installs, and launches the app. Works as both fresh installer
 # and updater (quits existing instance, replaces, relaunches).
+# Installs to ~/Applications (no sudo required).
 # Usage:
 #   curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh -o /tmp/nm_install.sh && bash /tmp/nm_install.sh
 
@@ -76,7 +77,7 @@ for a in d.get('assets', []):
     exit 1
   fi
 
-  APP_DEST="/Applications/Network Menubar.app"
+  APP_DEST="$HOME/Applications/Network Menubar.app"
   APP_NAME="Network Menubar"
 
   echo -e "📥 Downloading..."
@@ -100,11 +101,11 @@ for a in d.get('assets', []):
   killall "$APP_NAME" 2>/dev/null || true
   sleep 1
 
-  # Replace app in /Applications
-  echo -e "${YELLOW}📁 Installing to /Applications...${NC}"
+  # Replace app in ~/Applications (no sudo needed)
+  echo -e "${YELLOW}📁 Installing to ~/Applications...${NC}"
+  mkdir -p "$HOME/Applications"
   if [ -d "$APP_DEST" ]; then
-    echo -e "${YELLOW}🔐 Removing existing app (may require sudo)...${NC}"
-    rm -rf "$APP_DEST" 2>/dev/null || sudo rm -rf "$APP_DEST"
+    rm -rf "$APP_DEST"
   fi
   ditto "$EXTRACTED_APP" "$APP_DEST"
 
