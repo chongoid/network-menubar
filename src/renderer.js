@@ -176,15 +176,3 @@ window.api.onToast(showToast);
 
 // Initial load
 window.api.getMachines().then(renderMachines).catch(() => {});
-
-// Also poll for updates since Tauri doesn't have the same event system
-let lastMachineCount = 0;
-setInterval(async () => {
-  try {
-    const machines = await window.api.getMachines();
-    if (machines.length !== lastMachineCount) {
-      lastMachineCount = machines.length;
-      renderMachines(machines);
-    }
-  } catch (e) {}
-}, 1000);

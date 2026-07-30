@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 jobs:
-  build-macos:
+  build:
     runs-on: macos-latest
 
     steps:
@@ -25,100 +25,48 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build Tauri app (.app bundle)
-        run: npx tauri build
+      - name: Build for macOS
+        run: npm run build:mac-universal
 
-      - name: Zip the .app bundle
-        run: |
-          cd src-tauri/target/release/bundle/macos
-          ls -la
-          zip -r "Network.Menubar-${{ github.ref_name }}-macos.zip" "Network Menubar.app"
-          ls -la
-
-      - name: Upload macOS artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: macos
-          path: src-tauri/target/release/bundle/macos/*.zip
-
-  build-linux:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libssl-dev \
-            pkg-config \
-            librsvg2-dev \
-            file \
-            wget \
-            fuse \
-            libfuse2 \
-            libayatana-appindicator3-dev \
-            librsvg2-bin
-
-      - name: Install npm dependencies
-        run: npm install
-
-      - name: Build Linux AppImage
-        run: |
-          cd src-tauri
-          npx tauri build --bundles appimage
-        env:
-          TAURI_BUNDLER_TOOLS_GITHUB_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
-
-      - name: Upload AppImage
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux
-          path: src-tauri/target/release/bundle/appimage/
+          name: mac-build
+          path: dist/
 
   release:
-    needs: [build-macos, build-linux]
+    needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - name: Download macOS
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: macos
-          path: macos/
+          name: mac-build
+          path: dist/
 
-      - name: Download Linux
-        uses: actions/download-artifact@v4
-        with:
-          name: linux
-          path: linux/
+      - name: Create zip of app for easy install
+        run: |
+          # Find the .app files and zip them for direct download
+          cd dist
+          for app in *.app; do
+            if [ -d "$app" ]; then
+              zip -r "${app%.app}.zip" "$app"
+              echo "Created ${app%.app}.zip"
+            fi
+          done
+          ls -la *.zip
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            macos/*.zip
-            linux/*.AppImage
+            dist/*.dmg
+            dist/*.zip
           draft: false
           prerelease: false
         env:
