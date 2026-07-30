@@ -6,7 +6,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::collections::HashMap;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
+use tauri::{
+    AppHandle, Manager, Emitter,
+    image::Image,
+    menu::{Menu, MenuItem},
+    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Machine {
@@ -79,7 +84,7 @@ fn copy_to_clipboard(text: String) -> bool {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = text; // suppress unused warning on non-macOS
+        let _ = text;
     }
     true
 }
@@ -202,11 +207,60 @@ pub fn run() {
             get_version,
             run_update
         ])
-        .setup(|_app| {
-        Ok(())
-    })
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+        .setup(|app| {
+            let show_dashboard = MenuItem::with_id(app, "show", "Open Dashboard", true, None::<&str>)?;
+            let scan_now = MenuItem::with_id(app, "scan", "Scan Now", true, None::<&str>)?;
+            let update_item = MenuItem::with_id(app, "update", "Check for Updates", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_dashboard, &scan_now, &update_item, &quit_item])?;
+
+            let icon_bytes = include_bytes!("../icons/32x32.png");
+            let icon = Image::from_bytes(icon_bytes)?;
+
+            let _tray = TrayIconBuilder::with_id("main-tray")
+                .icon(icon)
+                .icon_as_template(true)
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .tooltip("Network Menubar")
+                .on_menu_event(|app, event| {
+                    match event.id.as_ref() {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        "scan" => {
+                            let _ = app.emit("scan-now", ());
+                        }
+                        "update" => {
+                            use std::process::Command;
+                            let _ = Command::new("bash")
+                                .arg("-c")
+                                .arg("curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh -o /tmp/nm_install.sh && bash /tmp/nm_install.sh")
+                                .spawn();
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }
 
 fn main() {
