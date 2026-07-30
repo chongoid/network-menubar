@@ -55,8 +55,6 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-gnu
 
       - name: Install Linux dependencies
         run: |
@@ -67,18 +65,62 @@ jobs:
             libssl-dev \
             pkg-config \
             librsvg2-dev \
-            file
-
-      - name: Install Tauri CLI (cargo)
-        run: cargo install tauri-cli --version "^2.0" --locked
+            file \
+            wget \
+            fuse
 
       - name: Install npm dependencies
         run: npm install
 
-      - name: Build Linux AppImage
+      - name: Build Linux binary only (no bundling)
+        run: cd src-tauri && npx tauri build --no-bundle
+
+      - name: Verify binary exists
         run: |
+          ls -la src-tauri/target/release/network-menubar
+          file src-tauri/target/release/network-menubar
+
+      - name: Download linuxdeploy tools
+        run: |
+          mkdir -p /tmp/linuxdeploy
+          cd /tmp/linuxdeploy
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk-x86_64.AppImage
+          ls -la
+
+      - name: Create AppImage manually
+        run: |
+          export PATH="/tmp/linuxdeploy:$PATH"
           cd src-tauri
-          ~/.cargo/bin/tauri build --bundles appimage
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          cp target/release/network-menubar AppDir/usr/bin/
+          cp ../icon.icns AppDir/usr/share/icons/hicolor/256x256/apps/network-menubar.png 2>/dev/null || cp ../src/index.html AppDir/usr/share/icons/hicolor/256x256/apps/network-menubar.png 2>/dev/null || true
+          cat > AppDir/usr/share/applications/network-menubar.desktop <<EOF
+          [Desktop Entry]
+          Type=Application
+          Name=Network Menubar
+          Exec=network-menubar
+          Icon=network-menubar
+          Categories=Network;
+          EOF
+          cat > AppDir/AppRun <<'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          export PATH="${HERE}/usr/bin:${PATH}"
+          exec "${HERE}/usr/bin/network-menubar" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+          mkdir -p target/release/bundle
+          linuxdeploy --appdir AppDir --output appimage --desktop-file AppDir/usr/share/applications/network-menubar.desktop --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/network-menubar.png 2>&1 || \
+            (linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file AppDir/usr/share/applications/network-menubar.desktop 2>&1 | tee /tmp/linuxdeploy.log)
+          ls -la *.AppImage 2>/dev/null || ls -la target/release/bundle/appimage/ 2>/dev/null
+          # Move AppImage to expected location
+          mkdir -p target/release/bundle/appimage
+          find . -name "*.AppImage" -exec cp {} target/release/bundle/appimage/ \;
+          ls -la target/release/bundle/appimage/
 
       - name: Upload AppImage
         uses: actions/upload-artifact@v4
