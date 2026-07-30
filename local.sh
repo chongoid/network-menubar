@@ -1,16 +1,12 @@
 #!/bin/bash
-# Network Menubar - LOCAL dev installer
-# Builds directly from this repo, installs to ~/Applications, launches.
-# Use this for fast iteration without waiting for GitHub Actions.
+# Network Menubar - LOCAL dev installer (run from seebi)
+# Pulls source from thinktower, builds locally, installs to ~/Applications, launches.
 #
-# Usage (from your dev machine):
-#   curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/local.sh -o /tmp/nm_local.sh && bash /tmp/nm_local.sh
-#
-# Or run directly from the repo:
+# Usage (from seebi):
 #   bash local.sh
 #
-# If running from the repo, it uses the local source. If running via curl,
-# it clones the repo first.
+# Or one-liner from anywhere:
+#   curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/local.sh | bash
 
 set -uo pipefail
 
@@ -20,8 +16,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-REPO_URL="https://github.com/chongoid/network-menubar.git"
-LOCAL_REPO="/home/alsinas/network-menubar"
+REMOTE_HOST="thinktower"
+REMOTE_REPO="/home/alsinas/network-menubar"
+LOCAL_REPO="$HOME/Projects/network-menubar"
 INSTALL_DIR="$HOME/Applications"
 APP_NAME="Network Menubar.app"
 
@@ -29,66 +26,59 @@ echo ""
 echo -e "  ${BLUE}🚀 Network Menubar - LOCAL Build${NC}"
 echo ""
 
-# Check if we're already in the repo
-if [[ -f "$LOCAL_REPO/package.json" ]] && grep -q '"electron"' "$LOCAL_REPO/package.json" 2>/dev/null; then
-  echo -e "  ${GREEN}✓${NC} Using local repo at $LOCAL_REPO"
-  cd "$LOCAL_REPO"
+# Pull source from thinktower
+echo -e "  📥 Pulling source from ${REMOTE_HOST}:${REMOTE_REPO}..."
+mkdir -p "$HOME/Projects"
+if [[ -d "$LOCAL_REPO" ]]; then
+  # Existing repo — update via rsync to avoid git remote confusion
+  rsync -az --delete --exclude='.git' --exclude='node_modules' --exclude='dist' \
+    "${REMOTE_HOST}:${REMOTE_REPO}/" "$LOCAL_REPO/"
+  echo -e "     ${GREEN}✓${NC} Updated existing repo"
 else
-  echo -e "  ${YELLOW}⚠${NC} Local repo not found, cloning..."
-  git clone "$REPO_URL" "$LOCAL_REPO"
-  cd "$LOCAL_REPO"
+  # Fresh clone via rsync
+  rsync -az --exclude='.git' --exclude='node_modules' --exclude='dist' \
+    "${REMOTE_HOST}:${REMOTE_REPO}/" "$LOCAL_REPO/"
+  echo -e "     ${GREEN}✓${NC} Cloned to $LOCAL_REPO"
 fi
 
-# Pull latest
-git pull --rebase origin main 2>/dev/null || true
+cd "$LOCAL_REPO"
 
-# Check Node/npm
+# Check Node
 if ! command -v node &> /dev/null; then
-  echo -e "  ${RED}✗${NC} Node.js is required. Install with: brew install node"
+  echo -e "  ${RED}✗${NC} Node.js required. Install: brew install node"
   exit 1
 fi
-
-NODE_VERSION=$(node --version)
-echo -e "  ${GREEN}✓${NC} Node.js $NODE_VERSION"
+echo -e "  ${GREEN}✓${NC} Node.js $(node --version)"
 
 # Install deps if needed
-if [[ ! -d "node_modules" ]]; then
+if [[ ! -d "node_modules" ]] || [[ "package.json" -nt "node_modules/.package-lock.json" ]]; then
   echo -e "  📦 Installing dependencies..."
   npm install
 fi
 
-# Build for macOS (universal: arm64 + x64)
+# Build for macOS (universal)
 echo ""
-echo -e "  🔨 Building for macOS..."
-npm run build:mac-universal 2>&1 | tail -5
+echo -e "  🔨 Building for macOS (arm64 + x64)..."
+npm run build:mac-universal 2>&1 | tail -3
 
-# Check build output
-if [[ ! -d "dist/mac-arm64/$APP_NAME" ]] && [[ ! -d "dist/mac/$APP_NAME" ]]; then
-  echo -e "  ${RED}✗${NC} Build failed - no .app bundle found in dist/"
-  ls -la dist/ 2>/dev/null
-  exit 1
-fi
-
-# Pick the right .app for this machine
+# Find the built .app
 ARCH=$(uname -m)
 if [[ "$ARCH" == "arm64" ]]; then
   BUILT_APP="dist/mac-arm64/$APP_NAME"
+  if [[ ! -d "$BUILT_APP" ]]; then BUILT_APP="dist/mac/$APP_NAME"; fi
 else
   BUILT_APP="dist/mac/$APP_NAME"
+  if [[ ! -d "$BUILT_APP" ]]; then BUILT_APP="dist/mac-arm64/$APP_NAME"; fi
 fi
 
 if [[ ! -d "$BUILT_APP" ]]; then
-  # Try the other arch
-  if [[ "$ARCH" == "arm64" ]]; then
-    BUILT_APP="dist/mac/$APP_NAME"
-  else
-    BUILT_APP="dist/mac-arm64/$APP_NAME"
-  fi
+  echo -e "  ${RED}✗${NC} Build failed - no .app bundle in dist/"
+  ls -la dist/ 2>/dev/null
+  exit 1
 fi
-
 echo -e "  ${GREEN}✓${NC} Built: $BUILT_APP"
 
-# Quit existing instance
+# Quit existing
 echo ""
 echo -e "  🛑 Stopping existing instance..."
 osascript -e 'tell application "Network Menubar" to quit' 2>/dev/null || true
@@ -100,8 +90,6 @@ echo -e "  📁 Installing to $INSTALL_DIR..."
 mkdir -p "$INSTALL_DIR"
 rm -rf "$INSTALL_DIR/$APP_NAME"
 cp -R "$BUILT_APP" "$INSTALL_DIR/$APP_NAME"
-
-# Remove quarantine (local builds don't have it, but just in case)
 xattr -dr com.apple.quarantine "$INSTALL_DIR/$APP_NAME" 2>/dev/null || true
 
 # Launch
