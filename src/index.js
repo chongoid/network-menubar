@@ -62,48 +62,38 @@ function getTrayIcon() {
 // WIFI INFO (for menu bar label)
 // ============================================================
 let wifiCache = { ssid: null, rssi: null, ts: 0 };
+
 async function refreshWifi() {
   // Cache for 10 seconds
   if (Date.now() - wifiCache.ts < 10000) return wifiCache;
   try {
-    const { stdout } = await exec(
-      "system_profiler -json SPAirPortDataType 2>/dev/null | " +
-      "python3 -c \"import json,sys; d=json.load(sys.stdin)['SPAirPortDataType'][0]; " +
-      "print(d.get('_name','?')); " +
-      "print([c.get('spairport_signal',{}).get('_value','?') for c in d.get('spairport_airport_other_local_wireless_networks',[])] + " +
-      "[d.get('spairport_current_network_information',{}).get('spairport_signal',{}).get('_value','?')])\" 2>/dev/null"
-    );
-    const lines = stdout.trim().split('\n');
-    if (lines.length >= 2) {
-      wifiCache = { ssid: lines[0].trim() || null, rssi: lines[1].trim() || null, ts: Date.now() };
+    const airport = '/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport';
+    const { stdout } = await exec(`${airport} -I 2>/dev/null`);
+    const ssidMatch = stdout.match(/^\s*SSID:\s*(.+)$/m);
+    const rssiMatch = stdout.match(/^\s*agrCtlRSSI:\s*(-?\d+)/m);
+    if (ssidMatch) {
+      wifiCache = {
+        ssid: ssidMatch[1].trim(),
+        rssi: rssiMatch ? parseInt(rssiMatch[1], 10) : null,
+        ts: Date.now()
+      };
+    } else {
+      // Not connected to WiFi — mark cache fresh so we don't spam
+      wifiCache = { ssid: null, rssi: null, ts: Date.now() };
     }
   } catch (e) {
-    // Fallback: try airport command
-    try {
-      const airport = '/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport';
-      const { stdout } = await exec(`${airport} -I 2>/dev/null`);
-      const ssidMatch = stdout.match(/SSID:\s*(.+)/);
-      const rssiMatch = stdout.match(/agrCtlRSSI:\s*(-?\d+)/);
-      if (ssidMatch) {
-        wifiCache = {
-          ssid: ssidMatch[1].trim(),
-          rssi: rssiMatch ? rssiMatch[1] : null,
-          ts: Date.now()
-        };
-      }
-    } catch (e2) {}
+    wifiCache = { ssid: null, rssi: null, ts: Date.now() };
   }
   return wifiCache;
 }
 
 function wifiBars(rssi) {
-  if (!rssi) return '▁';
-  const r = parseInt(rssi, 10);
-  if (isNaN(r)) return '▁';
-  if (r >= -50) return '▁▂▃▄';  // excellent
-  if (r >= -60) return '▁▂▃▁';  // good
-  if (r >= -70) return '▁▂▁▁';  // fair
-  return '▁▁▁▁';                  // weak
+  if (rssi === null || rssi === undefined) return '○';
+  if (rssi >= -50) return '▁▂▃▄';
+  if (rssi >= -60) return '▁▂▃▁';
+  if (rssi >= -70) return '▁▂▁▁';
+  if (rssi >= -80) return '▁▁▁▁';
+  return '○';
 }
 
 // ============================================================
@@ -122,10 +112,12 @@ function buildTrayMenu(machines) {
   });
 
   // WiFi label at top
-  const ssid = wifiCache.ssid || '—';
+  const ssid = wifiCache.ssid;
   const rssi = wifiCache.rssi;
   const bars = wifiBars(rssi);
-  const wifiLabel = `${bars}  ${ssid}${rssi ? ` (${rssi} dBm)` : ''}`;
+  const wifiLabel = ssid
+    ? `${bars}  ${ssid}${rssi !== null ? ` (${rssi} dBm)` : ''}`
+    : `${bars}  Offline`;
 
   return Menu.buildFromTemplate([
     { label: wifiLabel, enabled: false },
