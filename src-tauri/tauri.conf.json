@@ -17,18 +17,6 @@
         "decorations": false,
         "hiddenTitle": true,
         "alwaysOnTop": true
-      },
-      {
-        "title": "Welcome to Network Menubar",
-        "url": "welcome.html",
-        "width": 460,
-        "height": 340,
-        "resizable": false,
-        "fullscreen": false,
-        "decorations": false,
-        "hiddenTitle": true,
-        "alwaysOnTop": true,
-        "visible": false
       }
     ],
     "security": {

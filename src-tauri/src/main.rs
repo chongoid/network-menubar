@@ -2,7 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::collections::HashMap;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -202,18 +201,11 @@ pub fn run() {
             get_version,
             run_update
         ])
-        .setup(|app| {
-            let config_dir = app.path().config_dir().unwrap_or_default();
-            let welcomed_path = config_dir.join(".network-menubar-welcomed");
-            if !welcomed_path.exists() {
-                if let Some(welcome) = app.get_webview_window("welcome") {
-                    let _ = welcome.show();
-                }
-            }
-            Ok(())
-        })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .setup(|_app| {
+        Ok(())
+    })
+    .run(tauri::generate_context!())
+    .expect("error while running tauri application");
 }
 
 fn main() {
