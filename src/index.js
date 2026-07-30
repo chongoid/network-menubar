@@ -134,8 +134,11 @@ function buildTrayMenu(machines) {
     ? `${bars}  ${ssid}${rssi !== null ? ` (${rssi} dBm)` : ''}`
     : `${bars}  Connecting…`;
 
+  // Top header: device count
+  const headerLabel = `${machines.length} Network Devices Detected (${onlineCount} online)`;
+
   return Menu.buildFromTemplate([
-    { label: wifiLabel, enabled: false },
+    { label: headerLabel, enabled: false },
     { type: 'separator' },
     ...(sorted.length === 0
       ? [{ label: 'No machines found', enabled: false }]
@@ -154,12 +157,12 @@ function buildTrayMenu(machines) {
           return {
             label: `${m.online ? '●' : '○'}  ${m.name || m.ip}${m.services && m.services.length > 0 ? `  (${m.services.length})` : ''}`,
             submenu: [
-              { label: m.name ? `${m.name}` : '(no hostname)',
-                click: () => copyToClipboard(m.name || m.ip, 'Hostname') },
-              { label: m.ip,
-                click: () => copyToClipboard(m.ip, 'IP') },
+              { label: m.ip, click: () => copyToClipboard(m.ip, 'IP') },
+              ...(m.name && m.name !== m.ip
+                ? [{ label: `${m.name}.local`, click: () => copyToClipboard(`${m.name}.local`, 'Hostname') }]
+                : []),
               { type: 'separator' },
-              { label: `Open SSH Session (${m.name || m.ip})`,
+              { label: `Open SSH Session`,
                 click: () => openSSH(m.name || m.ip) },
               ...serviceItems
             ]

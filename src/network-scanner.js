@@ -246,23 +246,37 @@ class NetworkScanner extends EventEmitter {
     }
 
     // DEDUPE: if multiple IPs share the same hostname (case-insensitive),
-    // collapse them to the FIRST IP and remove the others.
-    // This handles multihomed devices (WiFi + Ethernet) reporting same name.
-    const seenNames = new Map(); // lower(name) -> ip
-    const toDelete = [];
+    // collapse them to the IP with the most services (most complete record).
+    // Merge services from dropped IPs into the kept one.
+    const nameGroups = new Map(); // lower(name) -> [{ip, m}, ...]
     for (const [ip, m] of merged) {
       if (m.name) {
         const key = m.name.toLowerCase();
-        if (seenNames.has(key)) {
-          // Duplicate name — keep the first, mark this for removal
-          toDelete.push(ip);
-        } else {
-          seenNames.set(key, ip);
-        }
+        if (!nameGroups.has(key)) nameGroups.set(key, []);
+        nameGroups.get(key).push({ ip, m });
       }
     }
-    for (const ip of toDelete) {
-      merged.delete(ip);
+    for (const [, group] of nameGroups) {
+      if (group.length <= 1) continue;
+      // Sort by services count desc; keep the one with most services (or first if tied)
+      group.sort((a, b) => (b.m.services?.length || 0) - (a.m.services?.length || 0));
+      const keep = group[0];
+      const drop = group.slice(1);
+      // Merge services from dropped into kept
+      if (!keep.m.services) keep.m.services = [];
+      for (const { m: dropped } of drop) {
+        if (dropped.services) {
+          for (const svc of dropped.services) {
+            if (!keep.m.services.some(s => s.type === svc.type)) {
+              keep.m.services.push(svc);
+            }
+          }
+        }
+      }
+      // Remove dropped IPs from merged
+      for (const { ip } of drop) {
+        merged.delete(ip);
+      }
     }
 
     // Ping adds new hosts or refreshes lastSeen
