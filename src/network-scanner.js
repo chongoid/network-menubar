@@ -169,8 +169,16 @@ class NetworkScanner extends EventEmitter {
     const arpIps = await arpPromise;
     if (scanVersion !== this.scanVersion) return;
 
+    // TCP port scan + HTTP title probe to discover services (Jellyfin, Sonarr, etc.)
+    const tcpPromise = this.scanTCP().catch(e => {
+      console.error('[NetworkScanner] TCP scan error:', e.message);
+      return [];
+    });
+    const tcpServices = await tcpPromise;
+    if (scanVersion !== this.scanVersion) return;
+
     // Final merge with all data
-    this._mergeAndEmit(bonjourResults, pingResults, scanVersion, services, arpIps);
+    this._mergeAndEmit(bonjourResults, pingResults, scanVersion, services, arpIps, tcpServices);
 
     // Fire-and-forget hostname resolution for ping-only hosts
     this._resolveHostnamesInBackground();
@@ -229,7 +237,7 @@ class NetworkScanner extends EventEmitter {
     }
   }
 
-  _mergeAndEmit(bonjourResults, pingResults, scanVersion, services = [], arpIps = []) {
+  _mergeAndEmit(bonjourResults, pingResults, scanVersion, services = [], arpIps = [], tcpServices = []) {
     if (scanVersion !== this.scanVersion) return;
 
     const now = Date.now();
@@ -238,6 +246,41 @@ class NetworkScanner extends EventEmitter {
     // Seed with existing machines (preserve services array across scans)
     for (const [ip, m] of this.machines) {
       merged.set(ip, { ...m, services: m.services ? [...m.services] : [] });
+    }
+
+    // TCP services: register machines if unknown, attach services to machines
+    for (const s of tcpServices) {
+      let m = merged.get(s.ip);
+      if (!m) {
+        m = {
+          ip: s.ip,
+          name: null,
+          online: true,
+          lastSeen: now,
+          services: []
+        };
+        merged.set(s.ip, m);
+      }
+      if (!m.services) m.services = [];
+      // Skip if same port already exists (replace title if better)
+      const existing = m.services.find(x => x.port === s.port);
+      if (existing) {
+        // Prefer named services over generic ones
+        if (s.name && !existing.name) {
+          existing.label = s.label;
+          existing.name = s.name;
+          existing.type = s.type;
+          existing.scheme = s.scheme;
+        }
+      } else {
+        m.services.push({
+          type: s.type,
+          label: s.label,
+          port: s.port,
+          name: s.name,
+          scheme: s.scheme
+        });
+      }
     }
 
     // Mark ARP-only IPs (devices that have communicated but don't respond to ping)
@@ -560,6 +603,136 @@ class NetworkScanner extends EventEmitter {
       console.error('[NetworkScanner] scanARP error:', e.message);
       return [];
     }
+  }
+
+  // Scan common service ports on all known IPs and probe HTTP for app titles.
+  // Returns array of { ip, port, type, name?, scheme, title? } records.
+  // "type" is a best-guess label; "name" is HTTP title if available.
+  async scanTCP() {
+    if (this.localIP === '127.0.0.1' || !this.machines.size) return [];
+
+    // Known port -> service label mapping (from IANA + common conventions)
+    const PORT_LABELS = {
+      21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS',
+      80: 'HTTP', 110: 'POP3', 111: 'RPC', 135: 'MS-RPC', 139: 'NetBIOS',
+      143: 'IMAP', 161: 'SNMP', 389: 'LDAP', 443: 'HTTPS', 445: 'SMB',
+      465: 'SMTPS', 514: 'Syslog', 515: 'LPD', 548: 'AFP', 554: 'RTSP',
+      587: 'SMTP-Sub', 631: 'IPP', 873: 'rsync', 902: 'VMware', 993: 'IMAPS',
+      995: 'POP3S', 1080: 'SOCKS', 1194: 'OpenVPN', 1433: 'MSSQL', 1521: 'Oracle',
+      1701: 'L2TP', 1723: 'PPTP', 1812: 'RADIUS', 1883: 'MQTT', 1900: 'UPnP',
+      1984: 'Synology', 2049: 'NFS', 2181: 'ZooKeeper', 2222: 'SSH-Alt',
+      2375: 'Docker', 2376: 'Docker-TLS', 2379: 'etcd', 2483: 'Oracle-DB',
+      3000: 'Web', 3001: 'Web', 3268: 'LDAP-GC', 3269: 'LDAP-GC-S',
+      3306: 'MySQL', 3389: 'RDP', 3478: 'STUN', 3493: 'NUT', 3527: 'Web',
+      3690: 'SVN', 3693: 'Web', 4000: 'Web', 4045: 'lockd',
+      4500: 'Web', 5000: 'Web', 5001: 'Web', 5060: 'SIP', 5061: 'SIP-TLS',
+      5222: 'XMPP', 5353: 'mDNS', 5432: 'PostgreSQL', 5500: 'VNC',
+      5601: 'Kibana', 5672: 'AMQP', 5900: 'VNC', 5984: 'CouchDB',
+      6000: 'X11', 6379: 'Redis', 6443: 'K8s-API', 6767: 'Bazarr',
+      6881: 'BitTorrent', 7474: 'Neo4j', 7878: 'Sonarr', 8000: 'Web',
+      8008: 'Web', 8009: 'Web', 8080: 'Web', 8081: 'Web', 8083: 'AdGuard',
+      8086: 'InfluxDB', 8123: 'HomeAssistant', 8443: 'Web', 8784: 'Readarr',
+      8989: 'Sonarr-API', 9000: 'Portainer', 9001: 'Portainer-Agent',
+      9090: 'Prometheus/Cockpit', 9091: 'Transmission', 9200: 'Elasticsearch',
+      9443: 'Portainer-TLS', 9696: 'Prowlarr', 27017: 'MongoDB',
+      32400: 'Plex', 8096: 'Jellyfin', 32443: 'Web', 51413: 'Transmission-Peer',
+    };
+
+    // Ports worth HTTP probing for app title
+    const HTTP_PORTS = new Set([80, 443, 8080, 8443, 5000, 5001, 8000, 8008, 3000,
+                                 3001, 8096, 32400, 8989, 9000, 9090, 9091, 9443,
+                                 8123, 7878, 6767, 8784, 9696, 5601, 8083, 8086, 1984]);
+
+    const services = [];
+    const ips = Array.from(this.machines.keys()).filter(ip => ip !== this.localIP);
+    if (ips.length === 0) return [];
+
+    // Phase 1: parallel TCP connect scan
+    const check = (ip, port) => new Promise(resolve => {
+      const sock = new (require('net').Socket)();
+      sock.setTimeout(400);
+      sock.once('connect', () => { sock.destroy(); resolve({ ip, port }); });
+      sock.once('timeout', () => { sock.destroy(); resolve(null); });
+      sock.once('error', () => { resolve(null); });
+      sock.connect(port, ip);
+    });
+
+    const tasks = [];
+    for (const ip of ips) {
+      for (const port of Object.keys(PORT_LABELS)) {
+        tasks.push(check(ip, parseInt(port, 10)));
+      }
+    }
+    const openResults = await Promise.all(tasks);
+    const openMap = new Map();
+    for (const r of openResults) {
+      if (r) {
+        if (!openMap.has(r.ip)) openMap.set(r.ip, []);
+        openMap.get(r.ip).push(r.port);
+      }
+    }
+
+    // Phase 2: HTTP title probes on web ports
+    const probeTitle = async (ip, port) => {
+      const schemes = (port === 443 || port === 8443 || port === 5001 || port === 9443) ? ['https'] : ['http'];
+      for (const scheme of schemes) {
+        try {
+          const url = `${scheme}://${ip}:${port}/`;
+          const res = await fetch(url, {
+            method: 'GET',
+            signal: AbortSignal.timeout(1500),
+            headers: { 'User-Agent': 'Mozilla/5.0 NetworkMenubar/1.0' }
+          });
+          const text = await res.text();
+          const titleMatch = text.match(/<title[^>]*>([^<]{1,80})<\/title>/i);
+          if (titleMatch) {
+            return titleMatch[1].trim();
+          }
+          // Fallback to server header
+          const server = res.headers.get('server');
+          if (server) return server;
+          // Fallback to first h1
+          const h1Match = text.match(/<h1[^>]*>([^<]{1,60})<\/h1>/i);
+          if (h1Match) return h1Match[1].trim();
+        } catch (e) {}
+      }
+      return null;
+    };
+
+    const titleTasks = [];
+    for (const [ip, ports] of openMap) {
+      for (const port of ports) {
+        if (HTTP_PORTS.has(port)) {
+          titleTasks.push(probeTitle(ip, port).then(title => ({ ip, port, title })));
+        }
+      }
+    }
+    const titles = await Promise.all(titleTasks);
+    const titleMap = new Map();
+    for (const t of titles) {
+      if (t.title) {
+        const key = `${t.ip}:${t.port}`;
+        titleMap.set(key, t.title);
+      }
+    }
+
+    // Build service records
+    for (const [ip, ports] of openMap) {
+      for (const port of ports) {
+        const title = titleMap.get(`${ip}:${port}`);
+        const fallbackLabel = PORT_LABELS[port] || `Port ${port}`;
+        services.push({
+          ip,
+          port,
+          label: title || fallbackLabel,
+          type: `tcp-${port}`,
+          name: title,
+          scheme: fallbackLabel.toLowerCase().includes('https') || port === 443 || port === 8443 ? 'https' : 'http'
+        });
+      }
+    }
+
+    return services;
   }
 
   pingIP(ip) {
