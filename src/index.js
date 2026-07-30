@@ -16,6 +16,8 @@ let scanner = null;
 let scanInterval = null;
 let scanTimeout = null;
 let isScanning = false;
+let lastScanCompletedAt = 0;  // timestamp of last finished scan
+let lastScanStartedAt = 0;    // timestamp of current scan start (0 if not scanning)
 let settingsWindow = null;
 let welcomeWindow = null;
 
@@ -142,7 +144,25 @@ function buildTrayMenu(machines) {
   const asleepNote = asleepCount > 0 ? `, ${asleepCount} asleep` : '';
   const headerLabel = `${machines.length} Network Devices Detected (${onlineCount} online${asleepNote})`;
 
+  // Status line: scanning indicator + freshness timer
+  let statusLine;
+  if (isScanning) {
+    const elapsed = Math.floor((Date.now() - lastScanStartedAt) / 1000);
+    statusLine = `⟳  Scanning… ${elapsed}s`;
+  } else if (lastScanCompletedAt > 0) {
+    const ageSec = Math.floor((Date.now() - lastScanCompletedAt) / 1000);
+    let ageStr;
+    if (ageSec < 60) ageStr = `${ageSec}s ago`;
+    else if (ageSec < 3600) ageStr = `${Math.floor(ageSec / 60)}m ago`;
+    else ageStr = `${Math.floor(ageSec / 3600)}h ago`;
+    const freshness = ageSec < settings.scanInterval / 1000 + 5 ? '●' : '○';
+    statusLine = `${freshness}  Last scan: ${ageStr}`;
+  } else {
+    statusLine = '○  Never scanned';
+  }
+
   return Menu.buildFromTemplate([
+    { label: statusLine, enabled: false },
     { label: headerLabel, enabled: false },
     { type: 'separator' },
     ...(sorted.length === 0
@@ -270,10 +290,14 @@ function createTray() {
 async function triggerScan() {
   if (scanner && !isScanning) {
     isScanning = true;
+    lastScanStartedAt = Date.now();
+    rebuildTray();  // show "Scanning..." immediately
     try {
       await scanner.scan();
     } finally {
       isScanning = false;
+      lastScanCompletedAt = Date.now();
+      rebuildTray();  // refresh to show "Last scan: Xs ago"
     }
   }
 }
@@ -419,10 +443,12 @@ function restartScanInterval() {
     scanTimeout = setTimeout(async () => {
       if (scanner && !isScanning) {
         isScanning = true;
+        lastScanStartedAt = Date.now();
         try {
           await scanner.scan();
         } finally {
           isScanning = false;
+          lastScanCompletedAt = Date.now();
         }
       }
       scheduleNext();
@@ -603,6 +629,7 @@ app.whenReady().then(() => {
   // Initialize scanner and start scanning
   scanner = new NetworkScanner();
   scanner.on('update', () => {
+    lastScanCompletedAt = Date.now();
     // Only rebuild tray menu; mainWindow UI gets update via IPC
     rebuildTray();
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isLoading()) {
@@ -611,6 +638,7 @@ app.whenReady().then(() => {
       } catch (e) {}
     }
   });
+  lastScanStartedAt = Date.now();
   scanner.scan(); // non-blocking; emits incrementally
   restartScanInterval();
 
