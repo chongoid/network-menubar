@@ -1,18 +1,25 @@
 const { nativeImage } = require('electron');
+const path = require('path');
+const fs = require('fs');
 
-// Simple triangle icon for the menu bar - black/white template style
-// This is a 22x22px icon that works as a template image on macOS
-// The triangle points upward, simple and clean like native macOS icons
-const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5 L16 11 L6 17 Z"/></svg>`;
-
+// Load the bundled triangle PNG as a macOS template image.
+// Template images render in the correct color (white in dark menu bar,
+// black in light) automatically based on the menu bar theme.
 function createTrayIcon() {
   try {
-    // Create icon from SVG data URL
-    const icon = nativeImage.createFromDataURL(
-      'data:image/svg+xml;base64,' + Buffer.from(ICON_SVG).toString('base64')
-    );
-    // Set as template image so macOS renders it in the correct color
-    // (white in dark menu bar, black in light)
+    const iconPath = path.join(__dirname, 'tray-icon.png');
+    if (!fs.existsSync(iconPath)) {
+      console.error('[tray-icon] tray-icon.png not found at', iconPath);
+      return nativeImage.createEmpty();
+    }
+
+    const icon = nativeImage.createFromPath(iconPath);
+    if (icon.isEmpty()) {
+      console.error('[tray-icon] Failed to load tray-icon.png');
+      return nativeImage.createEmpty();
+    }
+
+    // Set as template image for native macOS menu bar rendering
     try { icon.setTemplateImage(true); } catch (e) {}
     return icon;
   } catch (e) {

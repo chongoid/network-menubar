@@ -93,7 +93,7 @@ if [[ ! -s "$DOWNLOAD_PATH" ]]; then
   exit 1
 fi
 FILE_SIZE=$(du -h "$DOWNLOAD_PATH" | cut -f1)
-echo "     Downloaded: ${GREEN}$FILE_SIZE${NC}"
+echo "     Downloaded: ${GREEN}${FILE_SIZE}${NC}"
 
 # Determine install location
 if [[ "$PLATFORM" == "macos" ]]; then
