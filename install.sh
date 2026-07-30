@@ -2,64 +2,64 @@
 # Network Menubar - One-liner installer/updater
 # Downloads, installs, and launches the app. Works as both fresh installer
 # and updater (quits existing instance, replaces, relaunches).
-# Usage: curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh -o /tmp/nm_install.sh && bash /tmp/nm_install.sh
+# Installs to ~/Applications (no sudo required).
+# Usage:
+#   curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh -o /tmp/nm_install.sh && bash /tmp/nm_install.sh
 
 set -uo pipefail
 
-# Colors and emojis
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
+# Colors
 RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
-
-# Simple spinner for long operations
-spin() {
-  local pid=$1
-  local message=$2
-  local spinchars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
-  local i=0
-  while kill -0 $pid 2>/dev/null; do
-    local char="${spinchars:$((i % 10)):1}"
-    printf "\r  ${BLUE}${char}${NC} ${message}"
-    sleep 0.1
-    ((i++))
-  done
-  wait $pid
-  local exit_code=$?
-  printf "\r  ${GREEN}✓${NC} ${message}               \n"
-  return $exit_code
-}
 
 echo ""
 echo "  🚀 Network Menubar Installer"
 echo ""
 
-# Step 1: Determine architecture
-echo "  📱 [1/5] Detecting architecture..."
-ARCH=$(uname -m)
-echo "     Architecture: $ARCH"
+# Detect platform
+OS_TYPE="$(uname -s)"
+case "$OS_TYPE" in
+  Darwin)
+    PLATFORM="macos"
+    ;;
+  Linux)
+    PLATFORM="linux"
+    ;;
+  *)
+    echo "  ${RED}✗ Unsupported platform: $OS_TYPE${NC}"
+    exit 1
+    ;;
+esac
+
+# Detect architecture
+ARCH="$(uname -m)"
 case "$ARCH" in
   arm64|aarch64) ARCH_TAG="arm64" ;;
   x86_64)        ARCH_TAG="x64"   ;;
-  *)           echo "     ${RED}✗${NC} Unsupported architecture: $ARCH" >&2; exit 1 ;;
+  *)
+    echo "  ${RED}✗ Unsupported architecture: $ARCH${NC}"
+    exit 1
+    ;;
 esac
-echo "     Using build for: $ARCH_TAG"
 
-# Step 2: Get latest release info from GitHub API
+echo "  📱 Platform: $PLATFORM | Architecture: $ARCH_TAG"
+
+# Get latest release info
 echo ""
-echo "  🔍 [2/5] Fetching latest release info from GitHub..."
-LATEST_JSON=$(curl -s https://api.github.com/repos/chongoid/network-menubar/releases/latest)
+echo "  🔍 Fetching latest release info..."
+LATEST_JSON=$(curl -s "https://api.github.com/repos/chongoid/network-menubar/releases/latest")
 if [[ -z "$LATEST_JSON" ]]; then
-  echo "     ${RED}✗${NC} No response from GitHub API" >&2
+  echo "  ${RED}✗ No response from GitHub API${NC}"
   exit 1
 fi
 
-# Parse JSON with python3
-RELEASE_TAG=$(echo "$LATEST_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tag_name',''))" 2>/dev/null)
+RELEASE_TAG=$(echo "$LATEST_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('tag_name',''))" 2>/dev/null)
 echo "     Latest release: ${GREEN}$RELEASE_TAG${NC}"
 
-# Look for the .zip asset
+# Find the .zip asset for our arch
 RELEASE_URL=$(echo "$LATEST_JSON" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
@@ -70,158 +70,124 @@ for a in d.get('assets', []):
         break
 " "$ARCH_TAG" 2>/dev/null)
 
-if [[ -n "$RELEASE_URL" ]]; then
-  echo "     Found .zip archive for $ARCH_TAG"
-  USE_ZIP=true
-else
-  echo "     ${YELLOW}⚠${NC} No .zip found, falling back to DMG..."
-  RELEASE_URL=$(echo "$LATEST_JSON" | python3 -c "
+if [[ -z "$RELEASE_URL" ]]; then
+  echo "  ${RED}✗ No .zip asset found for $ARCH_TAG${NC}"
+  echo "     Available assets:"
+  echo "$LATEST_JSON" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 for a in d.get('assets', []):
-    name = a.get('name', '')
-    if sys.argv[1] in name and name.endswith('.dmg'):
-        print(a.get('browser_download_url', ''))
-        break
-" "$ARCH_TAG" 2>/dev/null)
-  if [[ -z "$RELEASE_URL" ]]; then
-    echo "     ${RED}✗${NC} No DMG or ZIP asset found" >&2
-    echo "     Available assets:" >&2
-    echo "$LATEST_JSON" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-for a in d.get('assets', []):
-    print('     ', a.get('name', ''))
-" >&2
-    exit 1
-  fi
-  USE_ZIP=false
-  echo "     Using DMG: $RELEASE_URL"
-fi
-
-# Step 3: Download
-echo ""
-if [[ "$USE_ZIP" == "true" ]]; then
-  echo "  📦 [3/5] Downloading app archive..."
-else
-  echo "  📦 [3/5] Downloading DMG..."
-fi
-
-if [[ "$USE_ZIP" == "true" ]]; then
-  DOWNLOAD_PATH=$(mktemp /tmp/nm_download_XXXXXX.zip)
-else
-  DOWNLOAD_PATH=$(mktemp /tmp/nm_download_XXXXXX.dmg)
-fi
-
-(curl -L --progress-bar -o "$DOWNLOAD_PATH" "$RELEASE_URL" 2>&1) &
-CURL_PID=$!
-spin $CURL_PID "Downloading..."
-CURL_EXIT=$?
-
-if [[ $CURL_EXIT -ne 0 ]] || [[ ! -s "$DOWNLOAD_PATH" ]]; then
-  echo "     ${RED}✗${NC} Download failed" >&2
-  rm -f "$DOWNLOAD_PATH"
+    print('       ', a.get('name', ''))
+"
   exit 1
 fi
 
-FILE_SIZE=$(du -h "$DOWNLOAD_PATH" | cut -f1)
-echo "     Download complete: ${GREEN}$FILE_SIZE${NC}"
-
-# Step 4: Quit existing instance if running
+# Download
 echo ""
-echo "  🛑 [4/5] Stopping existing instance (if running)..."
-# Try to quit gracefully via AppleScript
-osascript -e 'tell application "Network Menubar" to quit' 2>/dev/null || true
-sleep 1
-# Force kill if still running
-pkill -f "Network Menubar" 2>/dev/null || true
-sleep 0.5
-echo "     ${GREEN}✓${NC} Existing instance stopped"
-
-# Step 5: Install
-echo ""
-echo "  ⚙️  [5/5] Installing to /Applications..."
-
-if [[ "$USE_ZIP" == "true" ]]; then
-  # ZIP path - extract and copy
-  TMP_EXTRACT=$(mktemp -d /tmp/nm_extract_XXXXXX)
-  unzip -q "$DOWNLOAD_PATH" -d "$TMP_EXTRACT"
-  
-  APP_PATH=$(find "$TMP_EXTRACT" -maxdepth 1 -type d -name "Network Menubar.app" | head -n1)
-  if [[ -z "$APP_PATH" ]]; then
-    echo "     ${RED}✗${NC} Network Menubar.app not found in archive" >&2
-    ls -la "$TMP_EXTRACT" >&2
-    rm -rf "$TMP_EXTRACT" "$DOWNLOAD_PATH"
-    exit 1
-  fi
-  
-  # Remove existing app first (for clean update)
-  (sudo rm -rf "/Applications/Network Menubar.app") &
-  RM_PID=$!
-  spin $RM_PID "Removing existing app..."
-  
-  (sudo cp -R "$APP_PATH" /Applications/) &
-  CP_PID=$!
-  spin $CP_PID "Copying to /Applications..."
-  CP_EXIT=$?
-  
-  if [[ $CP_EXIT -ne 0 ]]; then
-    echo "     ${RED}✗${NC} Failed to copy app to /Applications" >&2
-    rm -rf "$TMP_EXTRACT" "$DOWNLOAD_PATH"
-    exit 1
-  fi
-  
-  rm -rf "$TMP_EXTRACT" "$DOWNLOAD_PATH"
-else
-  # DMG path - mount, copy, unmount
-  MOUNT_POINT="/tmp/nm_mount_$(date +%s)"
-  HDI_OUTPUT=$(hdiutil attach -mountpoint "$MOUNT_POINT" "$DOWNLOAD_PATH" 2>&1)
-  if [[ $? -ne 0 ]]; then
-    echo "     ${RED}✗${NC} Failed to mount DMG" >&2
-    echo "$HDI_OUTPUT" >&2
-    rm -f "$DOWNLOAD_PATH"
-    exit 1
-  fi
-  
-  APP_PATH=$(find "$MOUNT_POINT" -maxdepth 1 -type d -name "Network Menubar.app" | head -n1)
-  if [[ -z "$APP_PATH" ]]; then
-    echo "     ${RED}✗${NC} Network Menubar.app not found in DMG" >&2
-    hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
-    rm -f "$DOWNLOAD_PATH"
-    exit 1
-  fi
-  
-  # Remove existing app first
-  (sudo rm -rf "/Applications/Network Menubar.app") &
-  RM_PID=$!
-  spin $RM_PID "Removing existing app..."
-  
-  (sudo cp -R "$APP_PATH" /Applications/) &
-  CP_PID=$!
-  spin $CP_PID "Copying to /Applications..."
-  CP_EXIT=$?
-  
-  if [[ $CP_EXIT -ne 0 ]]; then
-    echo "     ${RED}✗${NC} Failed to copy app to /Applications" >&2
-    hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
-    rm -f "$DOWNLOAD_PATH"
-    exit 1
-  fi
-  
-  hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
+echo "  📥 Downloading..."
+DOWNLOAD_PATH=$(mktemp /tmp/nm_XXXXXX.zip)
+curl -sL -o "$DOWNLOAD_PATH" "$RELEASE_URL"
+if [[ ! -s "$DOWNLOAD_PATH" ]]; then
+  echo "  ${RED}✗ Download failed${NC}"
   rm -f "$DOWNLOAD_PATH"
+  exit 1
+fi
+FILE_SIZE=$(du -h "$DOWNLOAD_PATH" | cut -f1)
+echo "     Downloaded: ${GREEN}$FILE_SIZE${NC}"
+
+# Determine install location
+if [[ "$PLATFORM" == "macos" ]]; then
+  # Use ~/Applications (user-writable, no sudo)
+  INSTALL_DIR="$HOME/Applications"
+  APP_NAME="Network Menubar.app"
+  APP_DEST="$INSTALL_DIR/$APP_NAME"
+else
+  INSTALL_DIR="$HOME/Applications"
+  APP_NAME="network-menubar.AppImage"
+  APP_DEST="$INSTALL_DIR/$APP_NAME"
 fi
 
-# Clear quarantine
-(sudo xattr -dr com.apple.quarantine "/Applications/Network Menubar.app" 2>&1) &
-XATTR_PID=$!
-spin $XATTR_PID "Clearing quarantine..."
-echo "     ${GREEN}✓${NC} Quarantine cleared"
+mkdir -p "$INSTALL_DIR"
 
-# Launch
+# Extract
 echo ""
-echo "  🎉 ${GREEN}Installation complete!${NC}"
-echo "     Network Menubar should now be running in your menu bar."
-echo "     If you don't see it, try right-clicking the app in /Applications and choosing Open."
-echo ""
-open "/Applications/Network Menubar.app"
+echo "  📦 Extracting..."
+TMP_EXTRACT=$(mktemp -d /tmp/nm_extract_XXXXXX)
+unzip -q "$DOWNLOAD_PATH" -d "$TMP_EXTRACT"
+
+if [[ "$PLATFORM" == "macos" ]]; then
+  EXTRACTED_APP=$(find "$TMP_EXTRACT" -maxdepth 2 -type d -name "*.app" | head -n1)
+  if [[ -z "$EXTRACTED_APP" ]]; then
+    echo "  ${RED}✗ .app bundle not found in archive${NC}"
+    ls -la "$TMP_EXTRACT"
+    rm -rf "$TMP_EXTRACT" "$DOWNLOAD_PATH"
+    exit 1
+  fi
+
+  # Quit existing instance
+  echo "  🛑 Stopping existing instance..."
+  osascript -e 'tell application "Network Menubar" to quit' 2>/dev/null || true
+  pkill -f "Network Menubar" 2>/dev/null || true
+  sleep 1
+
+  # Replace
+  echo "  📁 Installing to $INSTALL_DIR..."
+  rm -rf "$APP_DEST"
+  cp -R "$EXTRACTED_APP" "$APP_DEST"
+
+  # Remove quarantine (zip files don't have it, but just in case)
+  xattr -dr com.apple.quarantine "$APP_DEST" 2>/dev/null || true
+
+  # Register with Launch Services so Spotlight finds it
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP_DEST" 2>/dev/null || true
+
+  rm -rf "$TMP_EXTRACT" "$DOWNLOAD_PATH"
+
+  # Launch
+  echo ""
+  echo "  🚀 Launching $APP_NAME..."
+  open "$APP_DEST"
+
+  # Wait and verify it launched
+  sleep 3
+  if pgrep -fl "Network Menubar" > /dev/null; then
+    echo ""
+    echo "  ${GREEN}🎉 Done! Network Menubar is running in your menu bar.${NC}"
+    echo "     Look for the network icon in the top-right of your screen."
+  else
+    echo ""
+    echo "  ${YELLOW}⚠ App may not have launched. Check Console.app for errors.${NC}"
+    echo "     You can also try: open '$APP_DEST'"
+  fi
+else
+  # Linux AppImage
+  EXTRACTED_APP=$(find "$TMP_EXTRACT" -maxdepth 2 -name "*.AppImage" | head -n1)
+  if [[ -z "$EXTRACTED_APP" ]]; then
+    echo "  ${RED}✗ AppImage not found in archive${NC}"
+    rm -rf "$TMP_EXTRACT" "$DOWNLOAD_PATH"
+    exit 1
+  fi
+
+  pkill -f "network-menubar" 2>/dev/null || true
+  sleep 1
+
+  echo "  📁 Installing to $INSTALL_DIR..."
+  rm -f "$APP_DEST"
+  cp "$EXTRACTED_APP" "$APP_DEST"
+  chmod +x "$APP_DEST"
+
+  rm -rf "$TMP_EXTRACT" "$DOWNLOAD_PATH"
+
+  echo ""
+  echo "  🚀 Launching $APP_NAME..."
+  nohup "$APP_DEST" >/dev/null 2>&1 &
+
+  sleep 2
+  if pgrep -fl "network-menubar" > /dev/null; then
+    echo ""
+    echo "  ${GREEN}🎉 Done! Network Menubar is running.${NC}"
+  else
+    echo ""
+    echo "  ${YELLOW}⚠ App may not have launched. Try: $APP_DEST${NC}"
+  fi
+fi
