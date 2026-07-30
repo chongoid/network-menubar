@@ -77,8 +77,23 @@ async function refreshWifi() {
         rssi: rssiMatch ? parseInt(rssiMatch[1], 10) : null,
         ts: Date.now()
       };
+      return wifiCache;
+    }
+
+    // airport returned nothing — either on Ethernet, or location permission denied.
+    // Check active network interface to distinguish.
+    const { stdout: routeOut } = await exec("route -n get default 2>/dev/null | grep -i interface | awk '{print $2}'");
+    const iface = routeOut.trim();
+
+    // en0 = WiFi on Mac. en1+ = Ethernet/Thunderbolt.
+    if (iface && iface !== 'en0') {
+      // On Ethernet — show "Wired"
+      wifiCache = { ssid: 'Wired', rssi: null, ts: Date.now(), iface };
+    } else if (iface === 'en0') {
+      // On en0 (WiFi) but no SSID — could be connecting, or location perms denied
+      // Don't say OFFLINE — say "WiFi"
+      wifiCache = { ssid: 'WiFi', rssi: null, ts: Date.now(), iface };
     } else {
-      // Not connected to WiFi — mark cache fresh so we don't spam
       wifiCache = { ssid: null, rssi: null, ts: Date.now() };
     }
   } catch (e) {
@@ -88,12 +103,12 @@ async function refreshWifi() {
 }
 
 function wifiBars(rssi) {
-  if (rssi === null || rssi === undefined) return '○';
+  if (rssi === null || rssi === undefined) return '●';
   if (rssi >= -50) return '▁▂▃▄';
   if (rssi >= -60) return '▁▂▃▁';
   if (rssi >= -70) return '▁▂▁▁';
   if (rssi >= -80) return '▁▁▁▁';
-  return '○';
+  return '●';
 }
 
 // ============================================================
@@ -117,7 +132,7 @@ function buildTrayMenu(machines) {
   const bars = wifiBars(rssi);
   const wifiLabel = ssid
     ? `${bars}  ${ssid}${rssi !== null ? ` (${rssi} dBm)` : ''}`
-    : `${bars}  Offline`;
+    : `${bars}  Connecting…`;
 
   return Menu.buildFromTemplate([
     { label: wifiLabel, enabled: false },
@@ -139,10 +154,10 @@ function buildTrayMenu(machines) {
           return {
             label: `${m.online ? '●' : '○'}  ${m.name || m.ip}${m.services && m.services.length > 0 ? `  (${m.services.length})` : ''}`,
             submenu: [
-              { label: `IP: ${m.ip}`, enabled: false },
-              { type: 'separator' },
-              { label: 'Copy Hostname', click: () => copyToClipboard(m.name || m.ip, 'Hostname') },
-              { label: 'Copy IP', click: () => copyToClipboard(m.ip, 'IP') },
+              { label: m.name ? `${m.name}` : '(no hostname)',
+                click: () => copyToClipboard(m.name || m.ip, 'Hostname') },
+              { label: m.ip,
+                click: () => copyToClipboard(m.ip, 'IP') },
               { type: 'separator' },
               { label: `Open SSH Session (${m.name || m.ip})`,
                 click: () => openSSH(m.name || m.ip) },

@@ -6,6 +6,10 @@ const { promisify } = require('util');
 
 const dnsReverse = promisify(dns.reverse);
 
+// Cache to dedupe machines across scans by hostname (case-insensitive).
+// Key: lowercase hostname. Value: primary IP for that hostname.
+const hostToIpCache = new Map();
+
 // Service types to browse via Bonjour for hostnames
 const SERVICE_TYPES = [
   'http', 'ssh', 'afpovertcp', 'smb', 'nfs', 'ftp',
@@ -239,6 +243,26 @@ class NetworkScanner extends EventEmitter {
         name: m.name || existing?.name || null,
         type: m.type
       });
+    }
+
+    // DEDUPE: if multiple IPs share the same hostname (case-insensitive),
+    // collapse them to the FIRST IP and remove the others.
+    // This handles multihomed devices (WiFi + Ethernet) reporting same name.
+    const seenNames = new Map(); // lower(name) -> ip
+    const toDelete = [];
+    for (const [ip, m] of merged) {
+      if (m.name) {
+        const key = m.name.toLowerCase();
+        if (seenNames.has(key)) {
+          // Duplicate name — keep the first, mark this for removal
+          toDelete.push(ip);
+        } else {
+          seenNames.set(key, ip);
+        }
+      }
+    }
+    for (const ip of toDelete) {
+      merged.delete(ip);
     }
 
     // Ping adds new hosts or refreshes lastSeen
