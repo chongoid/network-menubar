@@ -2,7 +2,6 @@
 # Network Menubar - One-liner installer/updater
 # Downloads, installs, and launches the app. Works as both fresh installer
 # and updater (quits existing instance, replaces, relaunches).
-# Cache-bust: 2026-07-29
 # Usage:
 #   curl -sL https://raw.githubusercontent.com/chongoid/network-menubar/main/install.sh -o /tmp/nm_install.sh && bash /tmp/nm_install.sh
 
@@ -36,8 +35,8 @@ esac
 # Detect architecture
 ARCH="$(uname -m)"
 case "$ARCH" in
-  arm64|aarch64) ARCH_TAG="arm64" ; ARCH_PATTERNS="arm64 aarch64" ;;
-  x86_64|amd64)  ARCH_TAG="x86_64" ; ARCH_PATTERNS="x86_64 amd64" ;;
+  arm64|aarch64) ARCH_TAG="arm64" ;;
+  x86_64|amd64)  ARCH_TAG="x86_64" ;;
   *)
     echo -e "${RED}✗ Unsupported architecture: $ARCH${NC}"
     exit 1
@@ -50,23 +49,23 @@ echo -e "⚙️  Architecture: $ARCH_TAG"
 # Fetch latest release info
 echo -e "${YELLOW}🔍 Fetching latest release info from GitHub...${NC}"
 LATEST_JSON=$(curl -sL "https://api.github.com/repos/chongoid/network-menubar/releases/latest")
+TAG_NAME=$(echo "$LATEST_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+echo -e "${GREEN}✅ Latest release: $TAG_NAME${NC}"
 
-# Look for the appropriate asset
 if [ "$PLATFORM" = "macos" ]; then
-  # Look for DMG asset
+  # Look for macOS .zip asset (Tauri produces a .app bundle zipped up)
   RELEASE_URL=$(echo "$LATEST_JSON" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-patterns = sys.argv[1].split()
 for a in d.get('assets', []):
     name = a.get('name', '')
-    if name.endswith('.dmg') and any(p in name for p in patterns):
+    if name.endswith('.zip') and 'macos' in name.lower():
         print(a['browser_download_url'])
         break
-" "$ARCH_PATTERNS")
+")
 
   if [ -z "$RELEASE_URL" ]; then
-    echo -e "${RED}✗ No DMG asset found for $ARCH_TAG${NC}"
+    echo -e "${RED}✗ No macOS .zip asset found${NC}"
     echo "Available assets:"
     echo "$LATEST_JSON" | python3 -c "
 import json, sys
@@ -77,33 +76,36 @@ for a in d.get('assets', []):
     exit 1
   fi
 
-  echo -e "${GREEN}✅ Latest release: $(echo "$LATEST_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")${NC}"
-  echo -e "📥 Downloading DMG..."
+  APP_DEST="/Applications/Network Menubar.app"
+  APP_NAME="Network Menubar"
 
-  # Download DMG
-  curl -sL "$RELEASE_URL" -o /tmp/nm.dmg
+  echo -e "📥 Downloading..."
+  cd /tmp
+  curl -sL "$RELEASE_URL" -o nm.zip
+  echo -e "${GREEN}✅ Download complete${NC}"
 
-  # Mount the DMG
-  echo -e "${YELLOW}🔧 Mounting DMG...${NC}"
-  VOL=$(hdiutil attach /tmp/nm.dmg -nobrowse -quiet | awk '/\/Volumes\//{print $NF}')
-  if [ -z "$VOL" ]; then
-    echo -e "${RED}✗ Failed to mount DMG${NC}"
+  # Unzip the .app bundle
+  echo -e "${YELLOW}📦 Extracting...${NC}"
+  rm -rf "Network Menubar.app"
+  unzip -q -o nm.zip
+  EXTRACTED_APP=$(find . -maxdepth 2 -name "*.app" -type d | head -1)
+  if [ -z "$EXTRACTED_APP" ]; then
+    echo -e "${RED}✗ Could not find .app bundle in zip${NC}"
     exit 1
   fi
+  echo -e "${GREEN}✅ Found: $EXTRACTED_APP${NC}"
 
-  # Copy app to Applications
-  APP_SOURCE="$VOL/Network Menubar.app"
-  APP_DEST="/Applications/Network Menubar.app"
+  # Quit any running instance
+  echo -e "${YELLOW}🛑 Quitting any running instance...${NC}"
+  killall "$APP_NAME" 2>/dev/null || true
+  sleep 1
 
-  echo -e "${YELLOW}📁 Copying to $APP_DEST...${NC}"
+  # Replace app in /Applications
+  echo -e "${YELLOW}📁 Installing to /Applications...${NC}"
   if [ -d "$APP_DEST" ]; then
     rm -rf "$APP_DEST"
   fi
-  ditto "$APP_SOURCE" "$APP_DEST"
-
-  # Detach DMG
-  echo -e "${YELLOW}🗑️  Detaching DMG...${NC}"
-  hdiutil detach "$VOL" -quiet
+  ditto "$EXTRACTED_APP" "$APP_DEST"
 
   # Remove quarantine
   echo -e "${YELLOW}🛡️  Removing quarantine...${NC}"
@@ -115,7 +117,6 @@ for a in d.get('assets', []):
 
   echo ""
   echo -e "${GREEN}🌟 Done! Network Menubar is installed and launching.${NC}"
-  echo -e "${GREEN}   You can now see it in your menu bar.${NC}"
 
 elif [ "$PLATFORM" = "linux" ]; then
   # Look for AppImage asset
@@ -141,14 +142,11 @@ for a in d.get('assets', []):
     exit 1
   fi
 
-  echo -e "${GREEN}✅ Latest release: $(echo "$LATEST_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")${NC}"
   echo -e "📥 Downloading AppImage..."
-
-  # Download AppImage
   curl -sL "$RELEASE_URL" -o /tmp/network-menubar.AppImage
   chmod +x /tmp/network-menubar.AppImage
 
-  # Install to Applications or local bin
+  # Install to ~/Applications
   INSTALL_DIR="$HOME/Applications"
   mkdir -p "$INSTALL_DIR"
   cp /tmp/network-menubar.AppImage "$INSTALL_DIR/network-menubar.AppImage"

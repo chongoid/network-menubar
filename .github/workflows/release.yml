@@ -31,14 +31,20 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build Tauri app (DMG)
-        run: npx tauri build
+      - name: Build Tauri app (.app bundle)
+        run: npx tauri build --bundles app
 
-      - name: Upload DMG artifact
+      - name: Zip the .app bundle
+        run: |
+          cd src-tauri/target/release/bundle/macos
+          zip -r "Network.Menubar-${{ github.ref_name }}-macos.zip" "Network Menubar.app"
+          ls -la
+
+      - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dmg
-          path: src-tauri/target/release/bundle/dmg/
+          name: macos
+          path: src-tauri/target/release/bundle/macos/*.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -73,23 +79,17 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
-      - name: Build Linux binary + AppImage (Tauri bundle)
+      - name: Build Linux AppImage
         run: |
           cd src-tauri
-          # Try to build with the standard Tauri AppImage target
           npx tauri build --bundles appimage
         env:
           TAURI_BUNDLER_TOOLS_GITHUB_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
 
-      - name: Verify AppImage was created
-        run: |
-          find src-tauri/target/release/bundle -name "*.AppImage" -o -name "*.dmg"
-          ls -la src-tauri/target/release/bundle/appimage/ 2>/dev/null || echo "no appimage dir"
-
       - name: Upload AppImage
         uses: actions/upload-artifact@v4
         with:
-          name: appimage
+          name: linux
           path: src-tauri/target/release/bundle/appimage/
 
   release:
@@ -98,24 +98,24 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - name: Download DMG
+      - name: Download macOS
         uses: actions/download-artifact@v4
         with:
-          name: dmg
-          path: dmg/
+          name: macos
+          path: macos/
 
-      - name: Download AppImage
+      - name: Download Linux
         uses: actions/download-artifact@v4
         with:
-          name: appimage
-          path: appimage/
+          name: linux
+          path: linux/
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dmg/*.dmg
-            appimage/*.AppImage
+            macos/*.zip
+            linux/*.AppImage
           draft: false
           prerelease: false
         env:
