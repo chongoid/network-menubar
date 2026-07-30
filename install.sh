@@ -35,8 +35,8 @@ esac
 # Detect architecture
 ARCH="$(uname -m)"
 case "$ARCH" in
-  arm64|aarch64) ARCH_TAG="arm64" ;;
-  x86_64|amd64)  ARCH_TAG="x86_64" ;;
+  arm64|aarch64) ARCH_TAG="arm64" ; ARCH_PATTERNS="arm64 aarch64" ;;
+  x86_64|amd64)  ARCH_TAG="x86_64" ; ARCH_PATTERNS="x86_64 amd64" ;;
   *)
     echo -e "${RED}✗ Unsupported architecture: $ARCH${NC}"
     exit 1
@@ -56,13 +56,13 @@ if [ "$PLATFORM" = "macos" ]; then
   RELEASE_URL=$(echo "$LATEST_JSON" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-arch_tag = sys.argv[1]
+patterns = sys.argv[1].split()
 for a in d.get('assets', []):
     name = a.get('name', '')
-    if name.endswith('.dmg') and arch_tag in name:
+    if name.endswith('.dmg') and any(p in name for p in patterns):
         print(a['browser_download_url'])
         break
-" "$ARCH_TAG")
+" "$ARCH_PATTERNS")
 
   if [ -z "$RELEASE_URL" ]; then
     echo -e "${RED}✗ No DMG asset found for $ARCH_TAG${NC}"
